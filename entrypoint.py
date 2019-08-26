@@ -6,9 +6,34 @@ import aiohttp_cors
 import asyncio
 import base64
 import json
+import os
 
 class Namespace:
     pass
+
+# fetch("http://${api_addr}/api/ls")
+# .then((r) => { return r.text() })
+# .then((msg) => { console.log(msg) })
+async def ls_handler(request):
+    cmd = None
+    if request.body_exists:
+        cmd = await request.json()
+
+    def describe(filename):
+        protocol, container, topic = filename.split('__')
+        if cmd and cmd.get('long', False):
+            print('TODO: ls -l')
+        if cmd and cmd.get('all', False):
+            print('TODO: ls -a')
+        return {
+            'protocol': protocol,
+            'container': container,
+            'topic': topic,
+        }
+
+    return web.Response(text=json.dumps([
+        describe(filename) for filename in os.listdir('/dev/shm')
+    ]))
 
 # fetch("http://${api_addr}/api/pub", {
 #     method: "POST",
@@ -108,7 +133,9 @@ async def sub_handler(request):
 
 
 app = web.Application()
-app.add_routes([web.post('/api/pub', pub_handler),
+app.add_routes([web.get('/api/ls', ls_handler),
+                web.post('/api/ls', ls_handler),
+                web.post('/api/pub', pub_handler),
                 web.get('/api/sub', sub_handler)])
 
 cors = aiohttp_cors.setup(app, defaults={
