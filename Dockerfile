@@ -10,13 +10,11 @@ RUN mkdir -p /alephzero && \
     cd /alephzero && \
     git clone https://github.com/alephzero/alephzero.git && \
     cd /alephzero/alephzero && \
-    git reset --hard 7d965d584e9647daf7399ef6253635b289491a0b && \
     make install -j
 
 RUN cd /alephzero && \
     git clone https://github.com/alephzero/py.git && \
     cd /alephzero/py && \
-    git reset --hard f3dfbf44a1e9bd41309936a29db9a818321e536a && \
     pip3 install -r requirements.txt && \
     python3 setup.py install
 
