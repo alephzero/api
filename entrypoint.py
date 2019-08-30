@@ -9,7 +9,19 @@ import json
 import os
 
 class Namespace:
-    pass
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def __repr__(self):
+        keys = sorted(self.__dict__)
+        items = ("{}={!r}".format(k, self.__dict__[k]) for k in keys)
+        return "{}({})".format(type(self).__name__, ", ".join(items))
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __getattr__(self, name):
+        return self.__dict__.get(name, None)
 
 # fetch("http://${api_addr}/api/ls")
 # .then((r) => { return r.text() })
@@ -55,17 +67,12 @@ async def pub_handler(request):
     cmd = await request.json()
 
     tm = a0.TopicManager('''{{"container": "{}"}}'''.format(cmd['container']))
-    topic = tm.open_publisher_topic(cmd['topic'])
 
-    p = a0.Publisher(topic)
+    p = a0.Publisher(tm.publisher_topic(cmd['topic']))
+    p.pub(a0.Packet(
+        cmd['packet']['headers'],
+        base64.b64decode(cmd['packet']['payload'])))
 
-    hdrs = list(cmd['packet']['headers'].items())
-
-    p.pub(a0.Packet(hdrs, base64.b64decode(cmd['packet']['payload'])))
-    p.close()
-
-    topic.close()
-    tm.close()
     return web.Response(text='success')
 
 # ws = new WebSocket("ws://${api_addr}/api/sub")
@@ -84,17 +91,14 @@ async def sub_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    ns = Namespace()
-    ns.tm = None
-    ns.topic = None
-    ns.sub = None
+    ns = Namespace(loop = asyncio.get_event_loop())
 
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
             if msg.data == 'close':
                 break
             cmd = json.loads(msg.data)
-            ns.tm = a0.TopicManager('''{{
+            tm = a0.TopicManager('''{{
                 "container": "{container}",
                 "subscriber_maps": {{
                     "topic": {{
@@ -103,8 +107,6 @@ async def sub_handler(request):
                     }}
                 }}
             }}'''.format(container=cmd['container'], topic=cmd['topic']))
-            print(cmd)
-            ns.topic = ns.tm.open_subscriber_topic('topic')
             init_ = {
                 'OLDEST': a0.INIT_OLDEST,
                 'MOST_RECENT': a0.INIT_MOST_RECENT,
@@ -114,29 +116,69 @@ async def sub_handler(request):
                 'NEXT': a0.ITER_NEXT,
                 'NEWEST': a0.ITER_NEWEST,
             }[cmd['iter']]
-            ns.loop = asyncio.get_event_loop()
             def callback(pkt):
                 asyncio.ensure_future(ws.send_json({
                     'headers': pkt.headers,
                     'payload': base64.b64encode(pkt.payload.encode('utf-8')).decode('utf-8'),
                 }), loop=ns.loop)
-            ns.sub = a0.Subscriber(ns.topic, init_, iter_, callback)
+            ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
         elif msg.type == WSMsgType.ERROR:
             break
 
-    if ns.sub:
-        ns.sub.await_close()
-    if ns.topic:
-        ns.topic.close()
-    if ns.tm:
-        ns.tm.close()
+# fetch("http://${api_addr}/api/rpc", {
+#     method: "POST",
+#     body: JSON.stringify({
+#         container: "...",
+#         topic: "...",
+#         packet: {
+#             headers: [
+#                 ["key", "val"],
+#                 ...
+#             ],
+#             payload: window.btoa("..."),
+#         },
+#     })
+# })
+# .then((r) => { return r.text() })
+# .then((msg) => { console.log(msg) })
+async def rpc_handler(request):
+    cmd = await request.json()
+
+    ns = Namespace(loop = asyncio.get_event_loop())
+
+    tm = a0.TopicManager('''{{
+        "container": "{container}",
+        "rpc_client_maps": {{
+            "topic": {{
+                "container": "{container}",
+                "topic": "{topic}"
+            }}
+        }}
+    }}'''.format(container=cmd['container'], topic=cmd['topic']))
+
+    rc = a0.RpcClient(tm.rpc_client_topic('topic'))
+    req = a0.Packet(
+        cmd['packet']['headers'],
+        base64.b64decode(cmd['packet']['payload']))
+
+    fut = asyncio.Future()
+    def callback(pkt):
+        ns.loop.call_soon_threadsafe(fut.set_result, {
+            'headers': pkt.headers,
+            'payload': base64.b64encode(pkt.payload.encode('utf-8')).decode('utf-8'),
+        })
+
+    rc.send(req, callback)
+
+    return web.Response(text=json.dumps(await fut))
 
 
 app = web.Application()
 app.add_routes([web.get('/api/ls', ls_handler),
                 web.post('/api/ls', ls_handler),
                 web.post('/api/pub', pub_handler),
-                web.get('/api/sub', sub_handler)])
+                web.get('/api/sub', sub_handler),
+                web.post('/api/rpc', rpc_handler)])
 
 cors = aiohttp_cors.setup(app, defaults={
     "*": aiohttp_cors.ResourceOptions(
