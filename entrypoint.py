@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import alephzero as a0
+import a0
 from aiohttp import web, WSMsgType
 import aiohttp_cors
 import asyncio
