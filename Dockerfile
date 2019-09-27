@@ -26,13 +26,16 @@ FROM alpine:3.10
 
 RUN apk add --no-cache libstdc++ python3
 
-RUN pip3 install aiohttp aiohttp_cors && \
+COPY requirements.txt /
+
+RUN pip3 install -r /requirements.txt && \
     rm -rf /root/.cache/pip/*
 
 COPY --from=builder /usr/include/a0 /usr/include/a0
-COPY --from=builder /usr/include/alephzero.h /usr/include/alephzero.h
+COPY --from=builder /usr/include/a0.h /usr/include/a0.h
 COPY --from=builder /usr/lib/libalephzero.* /usr/lib/
-COPY --from=builder /usr/lib/python3.7/site-packages/alephzero.* /usr/lib/python3.7/site-packages/
+COPY --from=builder /usr/lib/python3.7/site-packages/a0.* /usr/lib/python3.7/site-packages/
+COPY --from=builder /usr/lib/python3.7/site-packages/alephzero* /usr/lib/python3.7/site-packages/
 COPY entrypoint.py /entrypoint.py
 
 ENTRYPOINT ["/entrypoint.py"]
