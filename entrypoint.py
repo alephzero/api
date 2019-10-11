@@ -139,7 +139,6 @@ async def sub_handler(request):
                 print('off thread callback', file=sys.stderr)
                 def cb_helper(pkt):
                     print('on thread callback', file=sys.stderr)
-                    print('payload', pkt.payload, file=sys.stderr)
                     asyncio.ensure_future(ws.send_json({
                         'headers': pkt.headers,
                         'payload': base64.b64encode(pkt.payload).decode('utf-8'),
