@@ -109,9 +109,12 @@ async def sub_handler(request):
     async for msg in ws:
         print('sub msg', msg, file=sys.stderr)
         if msg.type == WSMsgType.TEXT:
+            print('sub msg txt', file=sys.stderr)
             if msg.data == 'close':
                 break
+            print('parsing json', file=sys.stderr)
             cmd = json.loads(msg.data)
+            print('cmd', cmd, file=sys.stderr)
             tm = a0.TopicManager('''{{
                 "container": "{container}",
                 "subscriber_maps": {{
@@ -130,14 +133,20 @@ async def sub_handler(request):
                 'NEXT': a0.ITER_NEXT,
                 'NEWEST': a0.ITER_NEWEST,
             }[cmd['iter']]
+            print('init', init_, file=sys.stderr)
+            print('iter', iter_, file=sys.stderr)
             def callback(pkt):
+                print('off thread callback', file=sys.stderr)
                 def cb_helper(pkt):
+                    print('on thread callback', file=sys.stderr)
                     asyncio.ensure_future(ws.send_json({
                         'headers': pkt.headers,
                         'payload': base64.b64encode(pkt.payload).decode('utf-8'),
                     }), loop=ns.loop)
                 ns.loop.call_soon_threadsafe(cb_helper, pkt)
+            print('making sub', file=sys.stderr)
             ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
+            print('made sub', file=sys.stderr)
         elif msg.type == WSMsgType.ERROR:
             break
 
