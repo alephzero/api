@@ -105,8 +105,17 @@ async def sub_handler(request):
 
     ns = Namespace(loop = asyncio.get_event_loop())
     ns.loop.set_debug(True)
+    ns.close = False
+
+    def handle_exceptions(fut):
+        ex = fut.exception()
+        if ex is not None:
+            print('exception:', ex, file=sys.stderr)
+            ns.close = True
 
     async for msg in ws:
+        if ns.close:
+            break
         print('sub msg', msg, file=sys.stderr)
         if msg.type == WSMsgType.TEXT:
             print('sub msg txt', file=sys.stderr)
@@ -143,7 +152,7 @@ async def sub_handler(request):
                         'headers': pkt.headers,
                         'payload': base64.b64encode(pkt.payload).decode('utf-8'),
                     }), loop=ns.loop)
-                    fut.add_done_callback(lambda t: t.exception())
+                    fut.add_done_callback(handle_exceptions)
                     print('ensured', file=sys.stderr)
                 ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt_view))
             print('making sub', file=sys.stderr)
