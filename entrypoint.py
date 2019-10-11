@@ -89,8 +89,10 @@ async def pub_handler(request):
 #     ... evt.data ...
 # }
 async def sub_handler(request):
+    print('sub_handler', request, file=sys.stderr)
     ws = web.WebSocketResponse()
     await ws.prepare(request)
+    print('sub_handler prep', file=sys.stderr)
 
     ns = Namespace(loop = asyncio.get_event_loop())
     ns.loop.set_debug(True)
