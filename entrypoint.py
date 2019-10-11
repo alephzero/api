@@ -139,10 +139,11 @@ async def sub_handler(request):
                 print('off thread callback', file=sys.stderr)
                 def cb_helper(pkt):
                     print('on thread callback', file=sys.stderr)
-                    asyncio.ensure_future(ws.send_json({
+                    fut = asyncio.ensure_future(ws.send_json({
                         'headers': pkt.headers,
                         'payload': base64.b64encode(pkt.payload).decode('utf-8'),
                     }), loop=ns.loop)
+                    fut.add_done_callback(lambda t: t.exception())
                     print('ensured', file=sys.stderr)
                 ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt_view))
             print('making sub', file=sys.stderr)
