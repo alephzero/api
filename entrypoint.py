@@ -145,7 +145,7 @@ async def sub_handler(request):
                         'payload': base64.b64encode(pkt.payload).decode('utf-8'),
                     }), loop=ns.loop)
                     print('ensured', file=sys.stderr)
-                ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt))
+                ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt_view))
             print('making sub', file=sys.stderr)
             ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
             print('made sub', file=sys.stderr)
