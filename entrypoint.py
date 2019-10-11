@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 
+import sys
+
+print('importing a0...', file=sys.stderr)
 import a0
+print('importing aiohttp...', file=sys.stderr)
 from aiohttp import web, WSMsgType
+print('importing aiohttp_cors...', file=sys.stderr)
 import aiohttp_cors
+print('importing others...', file=sys.stderr)
 import asyncio
 import base64
 import json
