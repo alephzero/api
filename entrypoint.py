@@ -7,6 +7,7 @@ import asyncio
 import base64
 import json
 import os
+import sys
 
 class Namespace:
     def __init__(self, **kwargs):
@@ -95,6 +96,7 @@ async def sub_handler(request):
     ns.loop.set_debug(True)
 
     async for msg in ws:
+        print('sub msg', msg, file=sys.stderr)
         if msg.type == WSMsgType.TEXT:
             if msg.data == 'close':
                 break
@@ -194,3 +196,5 @@ for route in list(app.router.routes()):
     cors.add(route)
 
 web.run_app(app, port=24880)
+print('app completed', file=sys.stderr)
+
