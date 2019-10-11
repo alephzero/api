@@ -9,6 +9,8 @@ import json
 import os
 import sys
 
+print('starting...', file=sys.stderr)
+
 class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
@@ -23,6 +25,7 @@ class Namespace:
 
     def __getattr__(self, name):
         return self.__dict__.get(name, None)
+
 
 # fetch("http://${api_addr}/api/ls")
 # .then((r) => { return r.text() })
