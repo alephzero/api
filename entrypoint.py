@@ -119,7 +119,7 @@ async def sub_handler(request):
             def callback(pkt):
                 asyncio.ensure_future(ws.send_json({
                     'headers': pkt.headers,
-                    'payload': base64.b64encode(pkt.payload.encode('utf-8')).decode('utf-8'),
+                    'payload': base64.b64encode(pkt.payload).decode('utf-8'),
                 }), loop=ns.loop)
             ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
         elif msg.type == WSMsgType.ERROR:
@@ -165,7 +165,7 @@ async def rpc_handler(request):
     def callback(pkt):
         ns.loop.call_soon_threadsafe(fut.set_result, {
             'headers': pkt.headers,
-            'payload': base64.b64encode(pkt.payload.encode('utf-8')).decode('utf-8'),
+            'payload': base64.b64encode(pkt.payload).decode('utf-8'),
         })
 
     rc.send(req, callback)
