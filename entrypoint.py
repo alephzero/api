@@ -92,6 +92,7 @@ async def sub_handler(request):
     await ws.prepare(request)
 
     ns = Namespace(loop = asyncio.get_event_loop())
+    ns.loop.set_debug(True)
 
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
