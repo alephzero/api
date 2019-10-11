@@ -180,13 +180,16 @@ async def rpc_handler(request):
     return web.Response(text=json.dumps(await fut))
 
 
+print('creating app', file=sys.stderr)
 app = web.Application()
+print('adding routes', file=sys.stderr)
 app.add_routes([web.get('/api/ls', ls_handler),
                 web.post('/api/ls', ls_handler),
                 web.post('/api/pub', pub_handler),
                 web.get('/api/sub', sub_handler),
                 web.post('/api/rpc', rpc_handler)])
 
+print('adding cors', file=sys.stderr)
 cors = aiohttp_cors.setup(app, defaults={
     "*": aiohttp_cors.ResourceOptions(
             allow_credentials=True,
@@ -197,6 +200,7 @@ cors = aiohttp_cors.setup(app, defaults={
 for route in list(app.router.routes()):
     cors.add(route)
 
+print('running app', file=sys.stderr)
 web.run_app(app, port=24880)
 print('app completed', file=sys.stderr)
 
