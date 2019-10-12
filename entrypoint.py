@@ -113,53 +113,57 @@ async def sub_handler(request):
             print('exception:', ex, file=sys.stderr)
             ns.close = True
 
-    async for msg in ws:
-        if ns.close:
-            break
-        print('sub msg', msg, file=sys.stderr)
-        if msg.type == WSMsgType.TEXT:
-            print('sub msg txt', file=sys.stderr)
-            if msg.data == 'close':
+    try:
+        async for msg in ws:
+            if ns.close:
                 break
-            print('parsing json', file=sys.stderr)
-            cmd = json.loads(msg.data)
-            print('cmd', cmd, file=sys.stderr)
-            tm = a0.TopicManager('''{{
-                "container": "{container}",
-                "subscriber_maps": {{
-                    "topic": {{
-                        "container": "{container}",
-                        "topic": "{topic}"
+            print('sub msg', msg, file=sys.stderr)
+            if msg.type == WSMsgType.TEXT:
+                print('sub msg txt', file=sys.stderr)
+                if msg.data == 'close':
+                    break
+                print('parsing json', file=sys.stderr)
+                cmd = json.loads(msg.data)
+                print('cmd', cmd, file=sys.stderr)
+                tm = a0.TopicManager('''{{
+                    "container": "{container}",
+                    "subscriber_maps": {{
+                        "topic": {{
+                            "container": "{container}",
+                            "topic": "{topic}"
+                        }}
                     }}
-                }}
-            }}'''.format(container=cmd['container'], topic=cmd['topic']))
-            init_ = {
-                'OLDEST': a0.INIT_OLDEST,
-                'MOST_RECENT': a0.INIT_MOST_RECENT,
-                'AWAIT_NEW': a0.INIT_AWAIT_NEW,
-            }[cmd['init']]
-            iter_ = {
-                'NEXT': a0.ITER_NEXT,
-                'NEWEST': a0.ITER_NEWEST,
-            }[cmd['iter']]
-            print('init', init_, file=sys.stderr)
-            print('iter', iter_, file=sys.stderr)
-            def callback(pkt_view):
-                print('off thread callback', file=sys.stderr)
-                def cb_helper(pkt):
-                    print('on thread callback', file=sys.stderr)
-                    fut = asyncio.ensure_future(ws.send_json({
-                        'headers': pkt.headers,
-                        'payload': base64.b64encode(pkt.payload).decode('utf-8'),
-                    }), loop=ns.loop)
-                    fut.add_done_callback(handle_exceptions)
-                    print('ensured', file=sys.stderr)
-                ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt_view))
-            print('making sub', file=sys.stderr)
-            ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
-            print('made sub', file=sys.stderr)
-        elif msg.type == WSMsgType.ERROR:
-            break
+                }}'''.format(container=cmd['container'], topic=cmd['topic']))
+                init_ = {
+                    'OLDEST': a0.INIT_OLDEST,
+                    'MOST_RECENT': a0.INIT_MOST_RECENT,
+                    'AWAIT_NEW': a0.INIT_AWAIT_NEW,
+                }[cmd['init']]
+                iter_ = {
+                    'NEXT': a0.ITER_NEXT,
+                    'NEWEST': a0.ITER_NEWEST,
+                }[cmd['iter']]
+                print('init', init_, file=sys.stderr)
+                print('iter', iter_, file=sys.stderr)
+                def callback(pkt_view):
+                    print('off thread callback', file=sys.stderr)
+                    def cb_helper(pkt):
+                        print('on thread callback', file=sys.stderr)
+                        fut = asyncio.ensure_future(ws.send_json({
+                            'headers': pkt.headers,
+                            'payload': base64.b64encode(pkt.payload).decode('utf-8'),
+                        }), loop=ns.loop)
+                        fut.add_done_callback(handle_exceptions)
+                        print('ensured', file=sys.stderr)
+                    ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt_view))
+                print('making sub', file=sys.stderr)
+                ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
+                print('made sub', file=sys.stderr)
+            elif msg.type == WSMsgType.ERROR:
+                break
+        except Exception as e:
+            print(f'WS unrecoverable exception: {type(e)}: {e}', file=sys.stderr)
+
 
 # fetch("http://${api_addr}/api/rpc", {
 #     method: "POST",
