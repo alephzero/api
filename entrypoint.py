@@ -161,8 +161,8 @@ async def sub_handler(request):
                 print('made sub', file=sys.stderr)
             elif msg.type == WSMsgType.ERROR:
                 break
-        except Exception as e:
-            print(f'WS unrecoverable exception: {type(e)}: {e}', file=sys.stderr)
+    except Exception as e:
+        print(f'WS unrecoverable exception: {type(e)}: {e}', file=sys.stderr)
 
 
 # fetch("http://${api_addr}/api/rpc", {
