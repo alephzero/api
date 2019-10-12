@@ -14,6 +14,7 @@ import base64
 import json
 import os
 import sys
+import threading
 
 print('starting...', file=sys.stderr)
 
@@ -106,6 +107,7 @@ async def sub_handler(request):
     ns = Namespace(loop = asyncio.get_event_loop())
     ns.loop.set_debug(True)
     ns.close = False
+    ns.lock = threading.Lock()
 
     def handle_exceptions(fut):
         ex = fut.exception()
@@ -147,15 +149,18 @@ async def sub_handler(request):
                 print('iter', iter_, file=sys.stderr)
                 def callback(pkt_view):
                     print('off thread callback', file=sys.stderr)
+                    ns.lock = threading.Lock()
+                    ns.lock.acquire()
                     def cb_helper(pkt):
                         print('on thread callback', file=sys.stderr)
                         fut = asyncio.ensure_future(ws.send_json({
                             'headers': pkt.headers,
                             'payload': base64.b64encode(pkt.payload).decode('utf-8'),
                         }), loop=ns.loop)
-                        fut.add_done_callback(handle_exceptions)
+                        fut.add_done_callback(lambda t: ns.lock.release())
                         print('ensured', file=sys.stderr)
                     ns.loop.call_soon_threadsafe(cb_helper, a0.Packet(pkt_view))
+                    ns.lock.acquire()
                 print('making sub', file=sys.stderr)
                 ns.sub = a0.Subscriber(tm.subscriber_topic('topic'), init_, iter_, callback)
                 print('made sub', file=sys.stderr)
