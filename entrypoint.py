@@ -18,7 +18,7 @@ import threading
 # .then((msg) => { console.log(msg) })
 async def ls_handler(request):
     cmd = None
-    if request.body_exists:
+    if request.can_read_body:
         cmd = await request.json()
 
     def describe(filename):
@@ -52,6 +52,13 @@ async def ls_handler(request):
 # .then((msg) => { console.assert(msg == "success", msg) })
 async def pub_handler(request):
     cmd = await request.json()
+
+    if "packet" not in cmd:
+        cmd["packet"] = {}
+    if "headers" not in cmd["packet"]:
+        cmd["packet"]["headers"] = []
+    if "payload" not in cmd["packet"]:
+        cmd["packet"]["payload"] = ""
 
     tm = a0.TopicManager("""{{"container": "{}"}}""".format(cmd["container"]))
 
