@@ -24,7 +24,7 @@ RUN cd /alephzero && \
 
 FROM alpine:3.10
 
-RUN apk add --no-cache libstdc++ python3
+RUN apk add --no-cache g++ python3-dev
 
 COPY requirements.txt /
 
