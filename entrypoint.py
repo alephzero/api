@@ -98,7 +98,7 @@ async def pub_handler(request):
 #     ... evt.data ...
 # }
 async def sub_handler(request):
-    ws = web.WebSocketResponse(compress=True)
+    ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     async for msg in ws:
