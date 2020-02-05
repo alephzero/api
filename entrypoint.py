@@ -22,12 +22,27 @@ async def ls_handler(request):
         cmd = await request.json()
 
     def describe(filename):
-        protocol, container, topic = filename.split("__")
         if cmd and cmd.get("long", False):
             print("TODO: ls -l")
         if cmd and cmd.get("all", False):
             print("TODO: ls -a")
-        return {"protocol": protocol, "container": container, "topic": topic}
+
+        try:
+            protocol, container, topic = filename.split("__")
+            return {
+                "filename": filename,
+                "protocol": protocol,
+                "container": container,
+                "topic": topic,
+            }
+
+        except:
+            return {
+                "filename": filename,
+                "protocol": "",
+                "container": "",
+                "topic": "",
+            }
 
     return web.Response(text=json.dumps([
         describe(filename)
@@ -83,7 +98,7 @@ async def pub_handler(request):
 #     ... evt.data ...
 # }
 async def sub_handler(request):
-    ws = web.WebSocketResponse()
+    ws = web.WebSocketResponse(compress=True)
     await ws.prepare(request)
 
     async for msg in ws:
