@@ -75,7 +75,9 @@ async def pub_handler(request):
     if "payload" not in cmd["packet"]:
         cmd["packet"]["payload"] = ""
 
-    tm = a0.TopicManager("""{{"container": "{}"}}""".format(cmd["container"]))
+    tm = a0.TopicManager(json.dumps({
+        "container": cmd["container"],
+    }))
 
     p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
     p.pub(a0.Packet(
@@ -107,16 +109,15 @@ async def sub_handler(request):
 
         cmd = json.loads(msg.data)
 
-        tm = a0.TopicManager(
-            """{{
-            "container": "{container}",
-            "subscriber_maps": {{
-                "topic": {{
-                    "container": "{container}",
-                    "topic": "{topic}"
-                }}
-            }}
-        }}""".format(**cmd))
+        tm = a0.TopicManager(json.dumps({
+            "container": cmd["container"],
+            "subscriber_maps": {
+                "topic": {
+                    "container": cmd["container"],
+                    "topic": cmd["topic"],
+                }
+            },
+        }))
 
         init_ = {
             "OLDEST": a0.INIT_OLDEST,
@@ -153,18 +154,15 @@ async def sub_handler(request):
 async def rpc_handler(request):
     cmd = await request.json()
 
-    ns = Namespace(loop=asyncio.get_event_loop())
-
-    tm = a0.TopicManager(
-        """{{
-        "container": "{container}",
-        "rpc_client_maps": {{
-            "topic": {{
-                "container": "{container}",
-                "topic": "{topic}"
-            }}
-        }}
-    }}""".format(**cmd))
+    tm = a0.TopicManager(json.dumps({
+        "container": cmd["container"],
+        "rpc_client_maps": {
+            "topic": {
+                "container": cmd["container"],
+                "topic": cmd["topic"],
+            }
+        },
+    }))
 
     client = aio_rpc_client(tm.rpc_client_topic("topic"))
     resp = await client.send(a0.Packet(
