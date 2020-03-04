@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import sys
-
 import a0
 from aiohttp import web, WSMsgType
 import aiohttp_cors
@@ -110,10 +108,7 @@ async def sub_handler(request):
         tm = a0.TopicManager(
             container = "api",
             subscriber_aliases = {
-                "topic": a0.TopicAliasTarget(
-                    container = cmd["container"],
-                    topic = cmd["topic"],
-                )
+                "topic": cmd,
             }
         )
 
@@ -155,10 +150,7 @@ async def rpc_handler(request):
     tm = a0.TopicManager(
         container = "api",
         rpc_client_aliases = {
-            "topic": a0.TopicAliasTarget(
-                container = cmd["container"],
-                topic = cmd["topic"],
-            )
+            "topic": cmd,
         }
     )
 
