@@ -11,6 +11,8 @@ import sys
 import threading
 
 
+publishers = {}
+
 # fetch("http://${api_addr}/api/ls")
 # .then((r) => { return r.text() })
 # .then((msg) => { console.log(msg) })
@@ -63,7 +65,7 @@ async def ls_handler(request):
 # })
 # .then((r) => { return r.text() })
 # .then((msg) => { console.assert(msg == "success", msg) })
-async def pub_handler(request):
+async def pub_rest_handler(request):
     cmd = await request.json()
 
     if "packet" not in cmd:
@@ -102,26 +104,28 @@ async def pub_handler(request):
 #             payload: window.btoa("..."),
 #         },
 #     }))
-async def pub_ws_handler(request):
+async def pub_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     async for msg in ws:
         if msg.type != WSMsgType.TEXT:
             break
+
         cmd = json.loads(msg.data)
+        global publishers
 
-        tm = a0.TopicManager(
-            container = "api",
-            subscriber_aliases = {
-                "topic": cmd,
-            }
-        )
+        if cmd["topic"] in publishers:
+            publishers[cmd["topic"]].pub(a0.Packet(
+                cmd["packet"]["headers"],
+                base64.b64decode(cmd["packet"]["payload"])))
+        else:
+            tm = a0.TopicManager(container = cmd["container"])
+            publishers[cmd["topic"]] = a0.Publisher(tm.publisher_topic(cmd["topic"]))
 
-        p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
-        p.pub(a0.Packet(
-            cmd["packet"]["headers"],
-            base64.b64decode(cmd["packet"]["payload"])))
+            publishers[cmd["topic"]].pub(a0.Packet(
+                cmd["packet"]["headers"],
+                base64.b64decode(cmd["packet"]["payload"])))
 
         break
 
@@ -214,7 +218,7 @@ app.add_routes(
         web.get("/api/ls", ls_handler),
         web.post("/api/ls", ls_handler),
         web.post("/api/pub", pub_handler),
-        web.get("/api/pub_ws", pub_ws_handler),
+        web.get("/api/rest/pub", pub_rest_handler),
         web.get("/api/sub", sub_handler),
         web.post("/api/rpc", rpc_handler),
     ]
