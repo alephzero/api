@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-import a0
-from aiohttp import web, WSMsgType
-import aiohttp_cors
 import asyncio
 import base64
 import json
@@ -10,8 +7,12 @@ import os
 import sys
 import threading
 
+import a0
+from aiohttp import web, WSMsgType
+import aiohttp_cors
 
-# fetch("http://${api_addr}/api/ls")
+
+# fetch(`http://${api_addr}/api/ls`)
 # .then((r) => { return r.text() })
 # .then((msg) => { console.log(msg) })
 async def ls_handler(request):
@@ -42,12 +43,12 @@ async def ls_handler(request):
                 "topic": "",
             }
 
-    return web.Response(text=json.dumps([
-        describe(filename)
-        for filename in os.listdir("/dev/shm")]))
+    return web.Response(
+        text=json.dumps([describe(filename) for filename in os.listdir("/dev/shm")])
+    )
 
 
-# fetch("http://${api_addr}/api/pub", {
+# fetch(`http://${api_addr}/api/pub`, {
 #     method: "POST",
 #     body: JSON.stringify({
 #         container: "...",
@@ -63,7 +64,7 @@ async def ls_handler(request):
 # })
 # .then((r) => { return r.text() })
 # .then((msg) => { console.assert(msg == "success", msg) })
-async def pub_handler(request):
+async def pub_rest_handler(request):
     cmd = await request.json()
 
     if "packet" not in cmd:
@@ -73,14 +74,60 @@ async def pub_handler(request):
     if "payload" not in cmd["packet"]:
         cmd["packet"]["payload"] = ""
 
-    tm = a0.TopicManager(container = cmd["container"])
+    tm = a0.TopicManager(container=cmd["container"])
 
     p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
-    p.pub(a0.Packet(
-        cmd["packet"]["headers"],
-        base64.b64decode(cmd["packet"]["payload"])))
+    p.pub(
+        a0.Packet(cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"]))
+    )
 
     return web.Response(text="success")
+
+
+# ws = new WebSocket(`ws://${api_addr}/api/pub`)
+# ws.onopen = () => {
+#     ws.send(JSON.stringify({
+#         container: "foo",
+#         topic: "bar",
+#     }))
+# }
+# // then:
+# ws.send(JSON.stringify({
+#         packet: {
+#             headers: [
+#                 ["key", "val"],
+#                 // ...
+#             ],
+#             payload: window.btoa("..."),
+#         },
+# }))
+async def pub_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    publisher = None
+
+    async for msg in ws:
+        if msg.type != WSMsgType.TEXT:
+            break
+
+        cmd = json.loads(msg.data)
+
+        if publisher is None:
+            print(
+                "setting up publisher - container: %s, topic: %s"
+                % (cmd["container"], cmd["topic"]),
+                flush=True,
+            )
+            tm = a0.TopicManager(container=cmd["container"])
+            publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
+            continue
+
+        publisher.pub(
+            a0.Packet(
+                cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"])
+            )
+        )
 
 
 # ws = new WebSocket("ws://${api_addr}/api/sub")
@@ -96,6 +143,7 @@ async def pub_handler(request):
 #     ... evt.data ...
 # }
 async def sub_handler(request):
+    print("sub handler", flush=True)
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
@@ -105,12 +153,7 @@ async def sub_handler(request):
 
         cmd = json.loads(msg.data)
 
-        tm = a0.TopicManager(
-            container = "api",
-            subscriber_aliases = {
-                "topic": cmd,
-            }
-        )
+        tm = a0.TopicManager(container="api", subscriber_aliases={"topic": cmd,})
 
         init_ = {
             "OLDEST": a0.INIT_OLDEST,
@@ -120,15 +163,17 @@ async def sub_handler(request):
         iter_ = {"NEXT": a0.ITER_NEXT, "NEWEST": a0.ITER_NEWEST}[cmd["iter"]]
 
         async for pkt in a0.aio_sub(tm.subscriber_topic("topic"), init_, iter_):
-            await ws.send_json({
-                "headers": pkt.headers,
-                "payload": base64.b64encode(pkt.payload).decode("utf-8"),
-            })
+            await ws.send_json(
+                {
+                    "headers": pkt.headers,
+                    "payload": base64.b64encode(pkt.payload).decode("utf-8"),
+                }
+            )
 
         break
 
 
-# fetch("http://${api_addr}/api/rpc", {
+# fetch(`http://${api_addr}/api/rpc`, {
 #     method: "POST",
 #     body: JSON.stringify({
 #         container: "...",
@@ -147,22 +192,21 @@ async def sub_handler(request):
 async def rpc_handler(request):
     cmd = await request.json()
 
-    tm = a0.TopicManager(
-        container = "api",
-        rpc_client_aliases = {
-            "topic": cmd,
-        }
-    )
+    tm = a0.TopicManager(container="api", rpc_client_aliases={"topic": cmd,})
 
     client = a0.AioRpcClient(tm.rpc_client_topic("topic"))
-    resp = await client.send(a0.Packet(
-        cmd["packet"]["headers"],
-        base64.b64decode(cmd["packet"]["payload"])))
+    resp = await client.send(
+        a0.Packet(cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"]))
+    )
 
-    return web.Response(text=json.dumps({
-        "headers": pkt.headers,
-        "payload": base64.b64encode(pkt.payload).decode("utf-8"),
-    }))
+    return web.Response(
+        text=json.dumps(
+            {
+                "headers": resp.headers,
+                "payload": base64.b64encode(resp.payload).decode("utf-8"),
+            }
+        )
+    )
 
 
 app = web.Application()
@@ -170,7 +214,8 @@ app.add_routes(
     [
         web.get("/api/ls", ls_handler),
         web.post("/api/ls", ls_handler),
-        web.post("/api/pub", pub_handler),
+        web.get("/api/pub", pub_handler),
+        web.post("/api/rest/pub", pub_rest_handler),
         web.get("/api/sub", sub_handler),
         web.post("/api/rpc", rpc_handler),
     ]
