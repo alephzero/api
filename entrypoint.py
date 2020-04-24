@@ -200,8 +200,8 @@ async def rpc_handler(request):
     return web.Response(
         text=json.dumps(
             {
-                "headers": pkt.headers,
-                "payload": base64.b64encode(pkt.payload).decode("utf-8"),
+                "headers": resp.headers,
+                "payload": base64.b64encode(resp.payload).decode("utf-8"),
             }
         )
     )
