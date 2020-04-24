@@ -12,8 +12,6 @@ from aiohttp import web, WSMsgType
 import aiohttp_cors
 
 
-publishers = {}
-
 # fetch("http://${api_addr}/api/ls")
 # .then((r) => { return r.text() })
 # .then((msg) => { console.log(msg) })
@@ -50,42 +48,6 @@ async def ls_handler(request):
     )
 
 
-# fetch("http://${api_addr}/api/pub", {
-#     method: "POST",
-#     body: JSON.stringify({
-#         container: "...",
-#         topic: "...",
-#         packet: {
-#             headers: [
-#                 ["key", "val"],
-#                 ...
-#             ],
-#             payload: window.btoa("..."),
-#         },
-#     })
-# })
-# .then((r) => { return r.text() })
-# .then((msg) => { console.assert(msg == "success", msg) })
-async def pub_rest_handler(request):
-    cmd = await request.json()
-
-    if "packet" not in cmd:
-        cmd["packet"] = {}
-    if "headers" not in cmd["packet"]:
-        cmd["packet"]["headers"] = []
-    if "payload" not in cmd["packet"]:
-        cmd["packet"]["payload"] = ""
-
-    tm = a0.TopicManager(container=cmd["container"])
-
-    p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
-    p.pub(
-        a0.Packet(cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"]))
-    )
-
-    return web.Response(text="success")
-
-
 # ws = new WebSocket("ws://${api_addr}/api/pub_ws")
 # ws.onopen = () => {
 #     ws.send(JSON.stringify({
@@ -93,10 +55,10 @@ async def pub_rest_handler(request):
 #         topic: "...",
 #     }))
 # }
-# Then:
+#
+# then:
+#
 # ws.send(JSON.stringify({
-#         container: "...",
-#         topic: "...",
 #         packet: {
 #             headers: [
 #                 ["key", "val"],
@@ -109,24 +71,24 @@ async def pub_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
+    publisher = None
+
     async for msg in ws:
         if msg.type != WSMsgType.TEXT:
             break
 
         cmd = json.loads(msg.data)
-        global publishers
-        pubName = cmd["container"] + "__" + cmd["topic"]
-        if pubName not in publishers:
-            tm = a0.TopicManager(container=cmd["container"])
-            publishers[pubName] = a0.Publisher(tm.publisher_topic(cmd["topic"]))
 
-        publishers[pubName].pub(
+        if publisher is None:
+            tm = a0.TopicManager(container=cmd["container"])
+            publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
+            continue
+
+        publisher.pub(
             a0.Packet(
                 cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"])
             )
         )
-
-        break
 
 
 # ws = new WebSocket("ws://${api_addr}/api/sub")
