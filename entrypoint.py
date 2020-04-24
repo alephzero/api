@@ -48,6 +48,42 @@ async def ls_handler(request):
     )
 
 
+# fetch("http://${api_addr}/api/pub", {
+#     method: "POST",
+#     body: JSON.stringify({
+#         container: "...",
+#         topic: "...",
+#         packet: {
+#             headers: [
+#                 ["key", "val"],
+#                 ...
+#             ],
+#             payload: window.btoa("..."),
+#         },
+#     })
+# })
+# .then((r) => { return r.text() })
+# .then((msg) => { console.assert(msg == "success", msg) })
+async def pub_rest_handler(request):
+    cmd = await request.json()
+
+    if "packet" not in cmd:
+        cmd["packet"] = {}
+    if "headers" not in cmd["packet"]:
+        cmd["packet"]["headers"] = []
+    if "payload" not in cmd["packet"]:
+        cmd["packet"]["payload"] = ""
+
+    tm = a0.TopicManager(container=cmd["container"])
+
+    p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
+    p.pub(
+        a0.Packet(cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"]))
+    )
+
+    return web.Response(text="success")
+
+
 # ws = new WebSocket("ws://${api_addr}/api/pub_ws")
 # ws.onopen = () => {
 #     ws.send(JSON.stringify({
@@ -175,7 +211,7 @@ app.add_routes(
         web.get("/api/ls", ls_handler),
         web.post("/api/ls", ls_handler),
         web.get("/api/pub", pub_handler),
-        web.pub("/api/rest/pub", pub_rest_handler),
+        web.post("/api/rest/pub", pub_rest_handler),
         web.get("/api/sub", sub_handler),
         web.post("/api/rpc", rpc_handler),
     ]
