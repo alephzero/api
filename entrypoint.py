@@ -83,6 +83,49 @@ async def pub_handler(request):
     return web.Response(text="success")
 
 
+# ws = new WebSocket("ws://${api_addr}/api/pub_ws")
+# ws.onopen = () => {
+#     ws.send(JSON.stringify({
+#         container: "...",
+#         topic: "...",
+#     }))
+# }
+# Then:
+# ws.send(JSON.stringify({
+#         container: "...",
+#         topic: "...",
+#         packet: {
+#             headers: [
+#                 ["key", "val"],
+#                 ...
+#             ],
+#             payload: window.btoa("..."),
+#         },
+#     }))
+async def pub_ws_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    async for msg in ws:
+        if msg.type != WSMsgType.TEXT:
+            break
+        cmd = json.loads(msg.data)
+
+        tm = a0.TopicManager(
+            container = "api",
+            subscriber_aliases = {
+                "topic": cmd,
+            }
+        )
+
+        p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
+        p.pub(a0.Packet(
+            cmd["packet"]["headers"],
+            base64.b64decode(cmd["packet"]["payload"])))
+
+        break
+
+
 # ws = new WebSocket("ws://${api_addr}/api/sub")
 # ws.onopen = () => {
 #     ws.send(JSON.stringify({
@@ -171,6 +214,7 @@ app.add_routes(
         web.get("/api/ls", ls_handler),
         web.post("/api/ls", ls_handler),
         web.post("/api/pub", pub_handler),
+        web.get("/api/pub_ws", pub_ws_handler),
         web.get("/api/sub", sub_handler),
         web.post("/api/rpc", rpc_handler),
     ]
