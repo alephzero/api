@@ -115,17 +115,13 @@ async def pub_handler(request):
         cmd = json.loads(msg.data)
         global publishers
 
-        if cmd["topic"] in publishers:
-            publishers[cmd["topic"]].pub(a0.Packet(
-                cmd["packet"]["headers"],
-                base64.b64decode(cmd["packet"]["payload"])))
-        else:
+        if not cmd["topic"] in publishers:
             tm = a0.TopicManager(container = cmd["container"])
             publishers[cmd["topic"]] = a0.Publisher(tm.publisher_topic(cmd["topic"]))
 
-            publishers[cmd["topic"]].pub(a0.Packet(
-                cmd["packet"]["headers"],
-                base64.b64decode(cmd["packet"]["payload"])))
+        publishers[cmd["topic"]].pub(a0.Packet(
+            cmd["packet"]["headers"],
+            base64.b64decode(cmd["packet"]["payload"])))
 
         break
 
