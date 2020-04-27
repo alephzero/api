@@ -104,22 +104,27 @@ async def pub_rest_handler(request):
 #         },
 #     }))
 async def pub_handler(request):
+    print("ws connection!")
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     publisher = None
 
     async for msg in ws:
+        print("got a msg")
         if msg.type != WSMsgType.TEXT:
+            print("break!")
             break
 
         cmd = json.loads(msg.data)
 
         if publisher is None:
+            print("no publisher yet")
             tm = a0.TopicManager(container=cmd["container"])
             publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
             continue
 
+        print("publishing")
         publisher.pub(
             a0.Packet(
                 cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"])
