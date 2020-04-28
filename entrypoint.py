@@ -129,6 +129,7 @@ async def pub_handler(request):
             continue
 
         print("publishing", flush=True)
+        print(msg.data, flush=True)
         publisher.pub(
             a0.Packet(
                 cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"])
