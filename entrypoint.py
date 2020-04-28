@@ -11,8 +11,6 @@ import a0
 from aiohttp import web, WSMsgType
 import aiohttp_cors
 
-print("running new api code 1", flush=True)
-
 
 # fetch("http://${api_addr}/api/ls")
 # .then((r) => { return r.text() })
@@ -68,7 +66,6 @@ async def ls_handler(request):
 # .then((msg) => { console.assert(msg == "success", msg) })
 async def pub_rest_handler(request):
     cmd = await request.json()
-    print("rest handler", flush=True)
 
     if "packet" not in cmd:
         cmd["packet"] = {}
@@ -107,29 +104,27 @@ async def pub_rest_handler(request):
 #         },
 #     }))
 async def pub_handler(request):
-    print("pub ws handler", flush=True)
-
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     publisher = None
 
     async for msg in ws:
-        print("got a msg", flush=True)
         if msg.type != WSMsgType.TEXT:
-            print("break!", flush=True)
             break
 
         cmd = json.loads(msg.data)
 
         if publisher is None:
-            print("no publisher yet", flush=True)
+            print(
+                "setting up publisher - container: %s, topic: %s"
+                % (cmd["container"], cmd["topic"]),
+                flush=True,
+            )
             tm = a0.TopicManager(container=cmd["container"])
             publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
             continue
 
-        print("publishing", flush=True)
-        print(msg.data, flush=True)
         publisher.pub(
             a0.Packet(
                 cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"])
