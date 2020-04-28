@@ -12,7 +12,7 @@ from aiohttp import web, WSMsgType
 import aiohttp_cors
 
 
-# fetch("http://${api_addr}/api/ls")
+# fetch(`http://${api_addr}/api/ls`)
 # .then((r) => { return r.text() })
 # .then((msg) => { console.log(msg) })
 async def ls_handler(request):
@@ -48,7 +48,7 @@ async def ls_handler(request):
     )
 
 
-# fetch("http://${api_addr}/api/pub", {
+# fetch(`http://${api_addr}/api/pub`, {
 #     method: "POST",
 #     body: JSON.stringify({
 #         container: "...",
@@ -84,25 +84,23 @@ async def pub_rest_handler(request):
     return web.Response(text="success")
 
 
-# ws = new WebSocket("ws://${api_addr}/api/pub_ws")
+# ws = new WebSocket(`ws://${api_addr}/api/pub`)
 # ws.onopen = () => {
 #     ws.send(JSON.stringify({
-#         container: "...",
-#         topic: "...",
+#         container: "foo",
+#         topic: "bar",
 #     }))
 # }
-#
-# then:
-#
+# // then:
 # ws.send(JSON.stringify({
 #         packet: {
 #             headers: [
 #                 ["key", "val"],
-#                 ...
+#                 // ...
 #             ],
 #             payload: window.btoa("..."),
 #         },
-#     }))
+# }))
 async def pub_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -175,7 +173,7 @@ async def sub_handler(request):
         break
 
 
-# fetch("http://${api_addr}/api/rpc", {
+# fetch(`http://${api_addr}/api/rpc`, {
 #     method: "POST",
 #     body: JSON.stringify({
 #         container: "...",
