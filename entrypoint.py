@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-import asyncio
 import base64
 import json
 import os
 import sys
-import threading
 
 import a0
 from aiohttp import web, WSMsgType
@@ -22,9 +20,9 @@ async def ls_handler(request):
 
     def describe(filename):
         if cmd and cmd.get("long", False):
-            print("TODO: ls -l")
+            print("TODO: ls -l", file=sys.stderr)
         if cmd and cmd.get("all", False):
-            print("TODO: ls -a")
+            print("TODO: ls -a", file=sys.stderr)
 
         try:
             protocol, container, topic = filename.split("__")
@@ -43,9 +41,8 @@ async def ls_handler(request):
                 "topic": "",
             }
 
-    return web.Response(
-        text=json.dumps([describe(filename) for filename in os.listdir("/dev/shm")])
-    )
+    return web.Response(text=json.dumps(
+        [describe(filename) for filename in os.listdir("/dev/shm")]))
 
 
 # fetch(`http://${api_addr}/api/pub`, {
@@ -78,8 +75,8 @@ async def pub_rest_handler(request):
 
     p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
     p.pub(
-        a0.Packet(cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"]))
-    )
+        a0.Packet(cmd["packet"]["headers"],
+                  base64.b64decode(cmd["packet"]["payload"])))
 
     return web.Response(text="success")
 
@@ -91,12 +88,12 @@ async def pub_rest_handler(request):
 #         topic: "bar",
 #     }))
 # }
-# // then:
+# // later, after onopen completes:
 # ws.send(JSON.stringify({
 #         packet: {
 #             headers: [
 #                 ["key", "val"],
-#                 // ...
+#                 ...
 #             ],
 #             payload: window.btoa("..."),
 #         },
@@ -114,20 +111,15 @@ async def pub_handler(request):
         cmd = json.loads(msg.data)
 
         if publisher is None:
-            print(
-                "setting up publisher - container: %s, topic: %s"
-                % (cmd["container"], cmd["topic"]),
-                flush=True,
-            )
+            # TODO: Guard printing behind "verbose" flag.
+            print(f"Setting up publisher - {cmd}", flush=True)
             tm = a0.TopicManager(container=cmd["container"])
             publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
             continue
 
         publisher.pub(
-            a0.Packet(
-                cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"])
-            )
-        )
+            a0.Packet(cmd["packet"]["headers"],
+                      base64.b64decode(cmd["packet"]["payload"])))
 
 
 # ws = new WebSocket("ws://${api_addr}/api/sub")
@@ -153,7 +145,10 @@ async def sub_handler(request):
 
         cmd = json.loads(msg.data)
 
-        tm = a0.TopicManager(container="api", subscriber_aliases={"topic": cmd,})
+        tm = a0.TopicManager(container="api",
+                             subscriber_aliases={
+                                 "topic": cmd,
+                             })
 
         init_ = {
             "OLDEST": a0.INIT_OLDEST,
@@ -163,12 +158,10 @@ async def sub_handler(request):
         iter_ = {"NEXT": a0.ITER_NEXT, "NEWEST": a0.ITER_NEWEST}[cmd["iter"]]
 
         async for pkt in a0.aio_sub(tm.subscriber_topic("topic"), init_, iter_):
-            await ws.send_json(
-                {
-                    "headers": pkt.headers,
-                    "payload": base64.b64encode(pkt.payload).decode("utf-8"),
-                }
-            )
+            await ws.send_json({
+                "headers": pkt.headers,
+                "payload": base64.b64encode(pkt.payload).decode("utf-8"),
+            })
 
         break
 
@@ -192,40 +185,36 @@ async def sub_handler(request):
 async def rpc_handler(request):
     cmd = await request.json()
 
-    tm = a0.TopicManager(container="api", rpc_client_aliases={"topic": cmd,})
+    tm = a0.TopicManager(container="api", rpc_client_aliases={
+        "topic": cmd,
+    })
 
     client = a0.AioRpcClient(tm.rpc_client_topic("topic"))
     resp = await client.send(
-        a0.Packet(cmd["packet"]["headers"], base64.b64decode(cmd["packet"]["payload"]))
-    )
+        a0.Packet(cmd["packet"]["headers"],
+                  base64.b64decode(cmd["packet"]["payload"])))
 
-    return web.Response(
-        text=json.dumps(
-            {
-                "headers": resp.headers,
-                "payload": base64.b64encode(resp.payload).decode("utf-8"),
-            }
-        )
-    )
+    return web.Response(text=json.dumps({
+        "headers": resp.headers,
+        "payload": base64.b64encode(resp.payload).decode("utf-8"),
+    }))
 
 
 app = web.Application()
-app.add_routes(
-    [
-        web.get("/api/ls", ls_handler),
-        web.post("/api/ls", ls_handler),
-        web.get("/api/pub", pub_handler),
-        web.post("/api/rest/pub", pub_rest_handler),
-        web.get("/api/sub", sub_handler),
-        web.post("/api/rpc", rpc_handler),
-    ]
-)
+app.add_routes([
+    web.get("/api/ls", ls_handler),
+    web.get("/api/pub", pub_handler),
+    web.post("/api/rest/pub", pub_rest_handler),
+    web.get("/api/sub", sub_handler),
+    web.post("/api/rpc", rpc_handler),
+])
 cors = aiohttp_cors.setup(
     app,
     defaults={
-        "*": aiohttp_cors.ResourceOptions(
-            allow_credentials=True, expose_headers="*", allow_headers="*"
-        )
+        "*":
+            aiohttp_cors.ResourceOptions(allow_credentials=True,
+                                         expose_headers="*",
+                                         allow_headers="*")
     },
 )
 for route in list(app.router.routes()):
