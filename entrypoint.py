@@ -111,11 +111,8 @@ async def pub_handler(request):
         cmd = json.loads(msg.data)
 
         if publisher is None:
-            print(
-                "setting up publisher - container: %s, topic: %s" %
-                (cmd["container"], cmd["topic"]),
-                flush=True,
-            )
+            # TODO: Guard printing behind "verbose" flag.
+            print(f"Setting up publisher - {cmd}", flush=True)
             tm = a0.TopicManager(container=cmd["container"])
             publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
             continue
@@ -134,7 +131,6 @@ async def pub_handler(request):
 #         iter: "NEXT",  // or "NEWEST"
 #     }))
 # }
-# // later, after onopen completes:
 # ws.onmessage = (evt) => {
 #     ... evt.data ...
 # }
