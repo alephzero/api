@@ -1,0 +1,19 @@
+os: linux
+dist: bionic
+
+language: python
+python:
+  - 3.6
+
+branches:
+  only:
+    - master
+
+matrix:
+  include:
+  - name: Lint
+    install:
+      - python -m pip flake8 yapf
+    script:
+      - python -m yapf -d -r
+      - python -m flake8
