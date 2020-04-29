@@ -61,7 +61,7 @@ async def ls_handler(request):
 # })
 # .then((r) => { return r.text() })
 # .then((msg) => { console.assert(msg == "success", msg) })
-async def pub_rest_handler(request):
+async def pub_handler(request):
     cmd = await request.json()
 
     if "packet" not in cmd:
@@ -81,11 +81,11 @@ async def pub_rest_handler(request):
     return web.Response(text="success")
 
 
-# ws = new WebSocket(`ws://${api_addr}/api/pub`)
+# ws = new WebSocket(`ws://${api_addr}/wsapi/pub`)
 # ws.onopen = () => {
 #     ws.send(JSON.stringify({
-#         container: "foo",
-#         topic: "bar",
+#         container: "...",
+#         topic: "...",
 #     }))
 # }
 # // later, after onopen completes:
@@ -98,7 +98,7 @@ async def pub_rest_handler(request):
 #             payload: window.btoa("..."),
 #         },
 # }))
-async def pub_handler(request):
+async def pub_wshandler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
@@ -122,7 +122,7 @@ async def pub_handler(request):
                       base64.b64decode(cmd["packet"]["payload"])))
 
 
-# ws = new WebSocket("ws://${api_addr}/api/sub")
+# ws = new WebSocket(`ws://${api_addr}/wsapi/sub`)
 # ws.onopen = () => {
 #     ws.send(JSON.stringify({
 #         container: "...",
@@ -134,8 +134,7 @@ async def pub_handler(request):
 # ws.onmessage = (evt) => {
 #     ... evt.data ...
 # }
-async def sub_handler(request):
-    print("sub handler", flush=True)
+async def sub_wshandler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
@@ -203,10 +202,10 @@ async def rpc_handler(request):
 app = web.Application()
 app.add_routes([
     web.get("/api/ls", ls_handler),
-    web.get("/api/pub", pub_handler),
-    web.post("/api/rest/pub", pub_rest_handler),
-    web.get("/api/sub", sub_handler),
+    web.post("/api/pub", pub_handler),
     web.post("/api/rpc", rpc_handler),
+    web.get("/wsapi/pub", pub_wshandler),
+    web.get("/wsapi/sub", sub_wshandler),
 ])
 cors = aiohttp_cors.setup(
     app,
