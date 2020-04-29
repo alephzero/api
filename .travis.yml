@@ -15,5 +15,5 @@ matrix:
     install:
       - python -m pip install -U flake8 yapf
     script:
-      - python -m yapf -d -r
+      - python -m yapf -d -r .
       - python -m flake8
