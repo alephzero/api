@@ -141,10 +141,7 @@ async def sub_wshandler(request):
     msg = await ws.receive()
     cmd = json.loads(msg.data)
 
-    tm = a0.TopicManager(container="api",
-                         subscriber_aliases={
-                             "topic": cmd,
-                         })
+    tm = a0.TopicManager(container="api", subscriber_aliases={"topic": cmd})
 
     init_ = {
         "OLDEST": a0.INIT_OLDEST,
