@@ -138,31 +138,29 @@ async def sub_wshandler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    async for msg in ws:
-        if msg.type != WSMsgType.TEXT:
-            break
+    msg = await ws.receive()
+    cmd = json.loads(msg.data)
 
-        cmd = json.loads(msg.data)
+    tm = a0.TopicManager(container="api", subscriber_aliases={"topic": cmd})
 
-        tm = a0.TopicManager(container="api",
-                             subscriber_aliases={
-                                 "topic": cmd,
-                             })
+    init_ = {
+        "OLDEST": a0.INIT_OLDEST,
+        "MOST_RECENT": a0.INIT_MOST_RECENT,
+        "AWAIT_NEW": a0.INIT_AWAIT_NEW,
+    }[cmd["init"]]
+    iter_ = {"NEXT": a0.ITER_NEXT, "NEWEST": a0.ITER_NEWEST}[cmd["iter"]]
 
-        init_ = {
-            "OLDEST": a0.INIT_OLDEST,
-            "MOST_RECENT": a0.INIT_MOST_RECENT,
-            "AWAIT_NEW": a0.INIT_AWAIT_NEW,
-        }[cmd["init"]]
-        iter_ = {"NEXT": a0.ITER_NEXT, "NEWEST": a0.ITER_NEWEST}[cmd["iter"]]
+    scheduler = cmd.get("scheduler", "IMMEDIATE")
 
-        async for pkt in a0.aio_sub(tm.subscriber_topic("topic"), init_, iter_):
-            await ws.send_json({
-                "headers": pkt.headers,
-                "payload": base64.b64encode(pkt.payload).decode("utf-8"),
-            })
-
-        break
+    async for pkt in a0.aio_sub(tm.subscriber_topic("topic"), init_, iter_):
+        await ws.send_json({
+            "headers": pkt.headers,
+            "payload": base64.b64encode(pkt.payload).decode("utf-8"),
+        })
+        if scheduler == "IMMEDIATE":
+            pass
+        elif scheduler == "ON_ACK":
+            await ws.receive()
 
 
 # fetch(`http://${api_addr}/api/rpc`, {
