@@ -11,6 +11,13 @@ import subprocess
 import threading
 import types
 
+try:
+    from pytest_cov.embed import cleanup_on_sigterm
+except ImportError:
+    pass
+else:
+    cleanup_on_sigterm()
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -48,7 +55,7 @@ class RunApi:
         self._state_cv = ns.state_cv
 
     def __del__(self):
-        self._proc.kill()
+        self._proc.terminate()
         self._proc.wait()
         self._proc = None
 
