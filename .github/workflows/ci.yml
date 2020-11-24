@@ -24,7 +24,7 @@ jobs:
     - name: install core deps
       run: >
         apt update &&
-        apt install --no-install-recommends -y g++ git make pkg-config python3-dev python3-pip &&
+        apt install --no-install-recommends -y curl g++ git make pkg-config python3-dev python3-pip &&
         python3 -m pip install -U pip wheel setuptools pytest pytest-cov
     - name: make alephzero dep dir
       run: mkdir -p /alephzero
