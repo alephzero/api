@@ -6,7 +6,47 @@ on:
   pull_request:
     branches: [ master ]
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
+
+  test:
+    name: Unit Test
+
+    runs-on: ubuntu-latest
+    container:
+      image: 'ubuntu:20.04'
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: install core deps
+      run: >
+        apt update &&
+        apt install --no-install-recommends -y g++ git make pkg-config python3-dev python3-pip &&
+        python3 -m pip install -U pip wheel setuptools pytest
+    - name: make alephzero dep dir
+      run: mkdir -p /alephzero
+    - name: install alephzero
+      run: >
+        pushd /alephzero &&
+        git clone https://github.com/alephzero/alephzero.git &&
+        cd alephzero &&
+        make install -j &&
+        popd
+    - name: install alephzero python
+      run: >
+        pushd /alephzero &&
+        git clone https://github.com/alephzero/py.git &&
+        cd py &&
+        python3 -m pip install -r requirements.txt &&
+        python3 setup.py install &&
+        popd
+    - name: install pip requirements
+      run: python3 -m pip install -r requirements.txt
+    - name: run tests
+      run: python3 -m pytest -v test/
 
   lint:
     name: Lint
@@ -18,7 +58,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: install deps
-      run: apt update && apt install --no-install-recommends -y python3-pip && python3 -m pip install -U flake8 yapf
+      run: >
+        apt update &&
+        apt install --no-install-recommends -y python3-pip && python3 -m pip install -U flake8 yapf
     - name: flake8
       run: python3 -m flake8
     - name: yapf
