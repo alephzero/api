@@ -24,25 +24,23 @@ async def ls_handler(request):
         if cmd and cmd.get("all", False):
             print("TODO: ls -a", file=sys.stderr)
 
-        try:
-            protocol, container, topic = filename.split("__")
-            return {
-                "filename": filename,
-                "protocol": protocol,
-                "container": container,
-                "topic": topic,
-            }
+        description = {"filename": filename}
 
-        except:
-            return {
-                "filename": filename,
-                "protocol": "",
-                "container": "",
-                "topic": "",
-            }
+        if not filename.startswith("a0_"):
+            return
 
-    return web.Response(text=json.dumps(
-        [describe(filename) for filename in os.listdir("/dev/shm")]))
+        parts = filename.split("__")
+        description["protocol"] = parts[0][3:]
+        if len(parts) >= 2:
+            description["container"] = parts[1]
+        if len(parts) >= 3:
+            description["topic"] = parts[2]
+
+        return description
+
+    filenames = os.listdir(os.environ.get("A0_ROOT", "/dev/shm"))
+    return web.json_response(
+        [describe(filename) for filename in sorted(filenames)])
 
 
 # fetch(`http://${api_addr}/api/pub`, {
@@ -196,6 +194,9 @@ async def rpc_handler(request):
         "payload": base64.b64encode(resp.payload).decode("utf-8"),
     }))
 
+
+a0.InitGlobalTopicManager({"container": "api"})
+heartbeat = a0.Heartbeat()
 
 app = web.Application()
 app.add_routes([
