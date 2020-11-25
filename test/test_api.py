@@ -170,6 +170,9 @@ async def test_pub(sandbox):
             assert await resp.text() == "Missing required 'topic' field."
         pub_data["topic"] = "bbb"
 
+        async with session.post(endpoint, data="notjson") as resp:
+            assert resp.status == 400
+
         tm = a0.TopicManager({"container": "aaa"})
         sub = a0.SubscriberSync(tm.publisher_topic("bbb"), a0.INIT_OLDEST,
                                 a0.ITER_NEXT)
@@ -229,5 +232,8 @@ async def test_rpc(sandbox):
             assert resp.status == 400
             assert await resp.text() == "Missing required 'topic' field."
         rpc_data["topic"] = "bbb"
+
+        async with session.post(endpoint, data="notjson") as resp:
+            assert resp.status == 400
 
     assert ns.collected_requests == ["request_0", "request_1"]

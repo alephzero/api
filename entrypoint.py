@@ -51,7 +51,10 @@ async def ls_handler(request):
 # .then((r) => { return r.text() })
 # .then((msg) => { console.assert(msg == "success", msg) })
 async def pub_handler(request):
-    cmd = await request.json()
+    try:
+        cmd = await request.json()
+    except json.decoder.JSONDecodeError:
+        raise web.HTTPBadRequest(body=b"body must be json.")
 
     # Check for required fields.
     if "container" not in cmd:
@@ -92,7 +95,10 @@ async def pub_handler(request):
 # .then((r) => { return r.text() })
 # .then((msg) => { console.log(msg) })
 async def rpc_handler(request):
-    cmd = await request.json()
+    try:
+        cmd = await request.json()
+    except json.decoder.JSONDecodeError:
+        raise web.HTTPBadRequest(body=b"body must be json.")
 
     # Check for required fields.
     if "container" not in cmd:
