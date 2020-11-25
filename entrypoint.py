@@ -3,7 +3,6 @@
 import base64
 import json
 import os
-import sys
 
 import a0
 from aiohttp import web, WSMsgType
@@ -14,16 +13,8 @@ import aiohttp_cors
 # .then((r) => { return r.text() })
 # .then((msg) => { console.log(msg) })
 async def ls_handler(request):
-    cmd = None
-    if request.can_read_body:
-        cmd = await request.json()
 
     def describe(filename):
-        if cmd and cmd.get("long", False):
-            print("TODO: ls -l", file=sys.stderr)
-        if cmd and cmd.get("all", False):
-            print("TODO: ls -a", file=sys.stderr)
-
         description = {"filename": filename}
 
         if not filename.startswith("a0_"):
@@ -62,21 +53,72 @@ async def ls_handler(request):
 async def pub_handler(request):
     cmd = await request.json()
 
-    if "packet" not in cmd:
-        cmd["packet"] = {}
-    if "headers" not in cmd["packet"]:
-        cmd["packet"]["headers"] = []
-    if "payload" not in cmd["packet"]:
-        cmd["packet"]["payload"] = ""
+    # Check for required fields.
+    if "container" not in cmd:
+        raise web.HTTPBadRequest(body=b"Missing required 'container' field.")
+    if "topic" not in cmd:
+        raise web.HTTPBadRequest(body=b"Missing required 'topic' field.")
 
+    # Fill optional fields.
+    cmd["packet"] = cmd.get("packet", {})
+    headers = cmd["packet"].get("headers", [])
+    payload = cmd["packet"].get("payload", "")
+
+    # Find the absolute topic.
     tm = a0.TopicManager(container=cmd["container"])
+    topic = tm.publisher_topic(cmd["topic"])
 
-    p = a0.Publisher(tm.publisher_topic(cmd["topic"]))
-    p.pub(
-        a0.Packet(cmd["packet"]["headers"],
-                  base64.b64decode(cmd["packet"]["payload"])))
+    # Perform requested action.
+    p = a0.Publisher(topic)
+    p.pub(headers, base64.b64decode(payload))
 
     return web.Response(text="success")
+
+
+# fetch(`http://${api_addr}/api/rpc`, {
+#     method: "POST",
+#     body: JSON.stringify({
+#         container: "...",
+#         topic: "...",
+#         packet: {
+#             headers: [
+#                 ["key", "val"],
+#                 ...
+#             ],
+#             payload: window.btoa("..."),
+#         },
+#     })
+# })
+# .then((r) => { return r.text() })
+# .then((msg) => { console.log(msg) })
+async def rpc_handler(request):
+    cmd = await request.json()
+
+    # Check for required fields.
+    if "container" not in cmd:
+        raise web.HTTPBadRequest(body=b"Missing required 'container' field.")
+    if "topic" not in cmd:
+        raise web.HTTPBadRequest(body=b"Missing required 'topic' field.")
+
+    # Fill optional fields.
+    cmd["packet"] = cmd.get("packet", {})
+    headers = cmd["packet"].get("headers", [])
+    payload = cmd["packet"].get("payload", "")
+
+    # Find the absolute topic.
+    tm = a0.TopicManager(container="api", rpc_client_aliases={
+        "topic": cmd,
+    })
+    topic = tm.rpc_client_topic("topic")
+
+    # Perform requested action.
+    client = a0.AioRpcClient(topic)
+    resp = await client.send(a0.Packet(headers, base64.b64decode(payload)))
+
+    return web.json_response({
+        "headers": resp.headers,
+        "payload": base64.b64encode(resp.payload).decode("utf-8"),
+    })
 
 
 # ws = new WebSocket(`ws://${api_addr}/wsapi/pub`)
@@ -109,8 +151,6 @@ async def pub_wshandler(request):
         cmd = json.loads(msg.data)
 
         if publisher is None:
-            # TODO: Guard printing behind "verbose" flag.
-            print(f"Setting up publisher - {cmd}", flush=True)
             tm = a0.TopicManager(container=cmd["container"])
             publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
             continue
@@ -159,40 +199,6 @@ async def sub_wshandler(request):
             pass
         elif scheduler == "ON_ACK":
             await ws.receive()
-
-
-# fetch(`http://${api_addr}/api/rpc`, {
-#     method: "POST",
-#     body: JSON.stringify({
-#         container: "...",
-#         topic: "...",
-#         packet: {
-#             headers: [
-#                 ["key", "val"],
-#                 ...
-#             ],
-#             payload: window.btoa("..."),
-#         },
-#     })
-# })
-# .then((r) => { return r.text() })
-# .then((msg) => { console.log(msg) })
-async def rpc_handler(request):
-    cmd = await request.json()
-
-    tm = a0.TopicManager(container="api", rpc_client_aliases={
-        "topic": cmd,
-    })
-
-    client = a0.AioRpcClient(tm.rpc_client_topic("topic"))
-    resp = await client.send(
-        a0.Packet(cmd["packet"]["headers"],
-                  base64.b64decode(cmd["packet"]["payload"])))
-
-    return web.Response(text=json.dumps({
-        "headers": resp.headers,
-        "payload": base64.b64encode(resp.payload).decode("utf-8"),
-    }))
 
 
 a0.InitGlobalTopicManager({"container": "api"})

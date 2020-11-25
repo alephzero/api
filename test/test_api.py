@@ -94,7 +94,7 @@ async def sandbox():
 async def test_ls(sandbox):
     await sandbox.WaitUntilStartedAsync(timeout=1.0)
     async with aiohttp.ClientSession() as session:
-        async with session.get('http://localhost:24880/api/ls') as resp:
+        async with session.get("http://localhost:24880/api/ls") as resp:
             assert resp.status == 200
             assert await resp.json() == [
                 {
@@ -108,7 +108,7 @@ async def test_ls(sandbox):
         a0.File("a0_pubsub__aaa__ccc")
         a0.File("a0_rpc__bbb__ddd")
 
-        async with session.get('http://localhost:24880/api/ls') as resp:
+        async with session.get("http://localhost:24880/api/ls") as resp:
             assert resp.status == 200
             assert await resp.json() == [
                 {
@@ -158,6 +158,18 @@ async def test_pub(sandbox):
             assert resp.status == 200
             assert await resp.text() == "success"
 
+        pub_data.pop("container")
+        async with session.post(endpoint, data=json.dumps(pub_data)) as resp:
+            assert resp.status == 400
+            assert await resp.text() == "Missing required 'container' field."
+        pub_data["container"] = "aaa"
+
+        pub_data.pop("topic")
+        async with session.post(endpoint, data=json.dumps(pub_data)) as resp:
+            assert resp.status == 400
+            assert await resp.text() == "Missing required 'topic' field."
+        pub_data["topic"] = "bbb"
+
         tm = a0.TopicManager({"container": "aaa"})
         sub = a0.SubscriberSync(tm.publisher_topic("bbb"), a0.INIT_OLDEST,
                                 a0.ITER_NEXT)
@@ -165,4 +177,57 @@ async def test_pub(sandbox):
         while sub.has_next():
             msgs.append(sub.next().payload)
         assert len(msgs) == 2
-        assert msgs == [b'Hello, World!', b'Goodbye, World!']
+        assert msgs == [b"Hello, World!", b"Goodbye, World!"]
+
+
+async def test_rpc(sandbox):
+    await sandbox.WaitUntilStartedAsync(timeout=1.0)
+
+    ns = types.SimpleNamespace()
+    ns.collected_requests = []
+
+    def on_request(req):
+        ns.collected_requests.append(req.pkt.payload.decode("utf-8"))
+        req.reply(f"success_{len(ns.collected_requests)}")
+
+    tm = a0.TopicManager({"container": "aaa"})
+    topic = tm.rpc_server_topic("bbb")
+    server = a0.RpcServer(topic, on_request, None)  # noqa: F841
+
+    async with aiohttp.ClientSession() as session:
+        endpoint = "http://localhost:24880/api/rpc"
+        rpc_data = {
+            "container": "aaa",
+            "topic": "bbb",
+            "packet": {
+                "payload": "",
+            },
+        }
+
+        rpc_data["packet"]["payload"] = base64.b64encode(b"request_0").decode(
+            "utf-8")
+        async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
+            assert resp.status == 200
+            resp_pkt = await resp.json()
+            assert base64.b64decode(resp_pkt.get("payload", "")) == b"success_1"
+
+        rpc_data["packet"]["payload"] = base64.b64encode(b"request_1").decode(
+            "utf-8")
+        async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
+            assert resp.status == 200
+            resp_pkt = await resp.json()
+            assert base64.b64decode(resp_pkt.get("payload", "")) == b"success_2"
+
+        rpc_data.pop("container")
+        async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
+            assert resp.status == 400
+            assert await resp.text() == "Missing required 'container' field."
+        rpc_data["container"] = "aaa"
+
+        rpc_data.pop("topic")
+        async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
+            assert resp.status == 400
+            assert await resp.text() == "Missing required 'topic' field."
+        rpc_data["topic"] = "bbb"
+
+    assert ns.collected_requests == ["request_0", "request_1"]
