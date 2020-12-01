@@ -5,7 +5,7 @@ import json
 import os
 
 import a0
-from aiohttp import web, WSMsgType
+import aiohttp
 import aiohttp_cors
 
 
@@ -30,7 +30,7 @@ async def ls_handler(request):
         return description
 
     filenames = os.listdir(os.environ.get("A0_ROOT", "/dev/shm"))
-    return web.json_response(
+    return aiohttp.web.json_response(
         [describe(filename) for filename in sorted(filenames)])
 
 
@@ -54,13 +54,19 @@ async def pub_handler(request):
     try:
         cmd = await request.json()
     except json.decoder.JSONDecodeError:
-        raise web.HTTPBadRequest(body=b"body must be json.")
+        raise aiohttp.web.HTTPBadRequest(body=b"Body must be json.")
+
+    # Check cmd is a dict.
+    if type(cmd) != dict:
+        raise aiohttp.web.HTTPBadRequest(body=b"Body must be a json object.")
 
     # Check for required fields.
     if "container" not in cmd:
-        raise web.HTTPBadRequest(body=b"Missing required 'container' field.")
+        raise aiohttp.web.HTTPBadRequest(
+            body=b"Missing required 'container' field.")
     if "topic" not in cmd:
-        raise web.HTTPBadRequest(body=b"Missing required 'topic' field.")
+        raise aiohttp.web.HTTPBadRequest(
+            body=b"Missing required 'topic' field.")
 
     # Fill optional fields.
     cmd["packet"] = cmd.get("packet", {})
@@ -75,7 +81,7 @@ async def pub_handler(request):
     p = a0.Publisher(topic)
     p.pub(headers, base64.b64decode(payload))
 
-    return web.Response(text="success")
+    return aiohttp.web.Response(text="success")
 
 
 # fetch(`http://${api_addr}/api/rpc`, {
@@ -98,13 +104,19 @@ async def rpc_handler(request):
     try:
         cmd = await request.json()
     except json.decoder.JSONDecodeError:
-        raise web.HTTPBadRequest(body=b"body must be json.")
+        raise aiohttp.web.HTTPBadRequest(body=b"Body must be json.")
+
+    # Check cmd is a dict.
+    if type(cmd) != dict:
+        raise aiohttp.web.HTTPBadRequest(body=b"Body must be a json object.")
 
     # Check for required fields.
     if "container" not in cmd:
-        raise web.HTTPBadRequest(body=b"Missing required 'container' field.")
+        raise aiohttp.web.HTTPBadRequest(
+            body=b"Missing required 'container' field.")
     if "topic" not in cmd:
-        raise web.HTTPBadRequest(body=b"Missing required 'topic' field.")
+        raise aiohttp.web.HTTPBadRequest(
+            body=b"Missing required 'topic' field.")
 
     # Fill optional fields.
     cmd["packet"] = cmd.get("packet", {})
@@ -121,7 +133,7 @@ async def rpc_handler(request):
     client = a0.AioRpcClient(topic)
     resp = await client.send(a0.Packet(headers, base64.b64decode(payload)))
 
-    return web.json_response({
+    return aiohttp.web.json_response({
         "headers": resp.headers,
         "payload": base64.b64encode(resp.payload).decode("utf-8"),
     })
@@ -145,25 +157,48 @@ async def rpc_handler(request):
 #         },
 # }))
 async def pub_wshandler(request):
-    ws = web.WebSocketResponse()
+    ws = aiohttp.web.WebSocketResponse()
     await ws.prepare(request)
 
-    publisher = None
+    handshake_completed = False
 
     async for msg in ws:
-        if msg.type != WSMsgType.TEXT:
+        if msg.type != aiohttp.WSMsgType.TEXT:
             break
 
-        cmd = json.loads(msg.data)
+        try:
+            cmd = json.loads(msg.data)
+        except json.JSONDecodeError:
+            await ws.close(message=b"Message must be json.")
+            return
 
-        if publisher is None:
+        # Check cmd is a dict.
+        if type(cmd) != dict:
+            await ws.close(message=b"Message must be a json object.")
+            return
+
+        if not handshake_completed:
+            # Check for required fields.
+            if "container" not in cmd:
+                await ws.close(message=b"Missing required 'container' field.")
+                return
+            if "topic" not in cmd:
+                await ws.close(message=b"Missing required 'topic' field.")
+                return
+
+            # Create a publisher on the absolute topic.
             tm = a0.TopicManager(container=cmd["container"])
             publisher = a0.Publisher(tm.publisher_topic(cmd["topic"]))
+
+            handshake_completed = True
             continue
 
-        publisher.pub(
-            a0.Packet(cmd["packet"]["headers"],
-                      base64.b64decode(cmd["packet"]["payload"])))
+        # Fill optional fields.
+        cmd["packet"] = cmd.get("packet", {})
+        headers = cmd["packet"].get("headers", [])
+        payload = cmd["packet"].get("payload", "")
+
+        publisher.pub(headers, base64.b64decode(payload))
 
 
 # ws = new WebSocket(`ws://${api_addr}/wsapi/sub`)
@@ -179,7 +214,7 @@ async def pub_wshandler(request):
 #     ... evt.data ...
 # }
 async def sub_wshandler(request):
-    ws = web.WebSocketResponse()
+    ws = aiohttp.web.WebSocketResponse()
     await ws.prepare(request)
 
     msg = await ws.receive()
@@ -210,13 +245,13 @@ async def sub_wshandler(request):
 a0.InitGlobalTopicManager({"container": "api"})
 heartbeat = a0.Heartbeat()
 
-app = web.Application()
+app = aiohttp.web.Application()
 app.add_routes([
-    web.get("/api/ls", ls_handler),
-    web.post("/api/pub", pub_handler),
-    web.post("/api/rpc", rpc_handler),
-    web.get("/wsapi/pub", pub_wshandler),
-    web.get("/wsapi/sub", sub_wshandler),
+    aiohttp.web.get("/api/ls", ls_handler),
+    aiohttp.web.post("/api/pub", pub_handler),
+    aiohttp.web.post("/api/rpc", rpc_handler),
+    aiohttp.web.get("/wsapi/pub", pub_wshandler),
+    aiohttp.web.get("/wsapi/sub", sub_wshandler),
 ])
 cors = aiohttp_cors.setup(
     app,
@@ -230,4 +265,4 @@ cors = aiohttp_cors.setup(
 for route in list(app.router.routes()):
     cors.add(route)
 
-web.run_app(app, port=24880)
+aiohttp.web.run_app(app, port=24880)
