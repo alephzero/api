@@ -148,30 +148,43 @@ async def test_pub(sandbox):
                 "payload": base64.b64encode(b"Hello, World!").decode("utf-8"),
             },
         }
+
+        # Normal publish.
         async with session.post(endpoint, data=json.dumps(pub_data)) as resp:
             assert resp.status == 200
             assert await resp.text() == "success"
 
+        # Normal publish.
         pub_data["packet"]["payload"] = base64.b64encode(
             b"Goodbye, World!").decode("utf-8")
         async with session.post(endpoint, data=json.dumps(pub_data)) as resp:
             assert resp.status == 200
             assert await resp.text() == "success"
 
+        # Missing "container".
         pub_data.pop("container")
         async with session.post(endpoint, data=json.dumps(pub_data)) as resp:
             assert resp.status == 400
             assert await resp.text() == "Missing required 'container' field."
         pub_data["container"] = "aaa"
 
+        # Missing "topic".
         pub_data.pop("topic")
         async with session.post(endpoint, data=json.dumps(pub_data)) as resp:
             assert resp.status == 400
             assert await resp.text() == "Missing required 'topic' field."
         pub_data["topic"] = "bbb"
 
-        async with session.post(endpoint, data="notjson") as resp:
+        # Not JSON.
+        async with session.post(endpoint, data="not json") as resp:
             assert resp.status == 400
+            assert await resp.text() == "Body must be json."
+
+        # Not JSON object.
+        async with session.post(endpoint,
+                                data=json.dumps("not object")) as resp:
+            assert resp.status == 400
+            assert await resp.text() == "Body must be a json object."
 
         tm = a0.TopicManager({"container": "aaa"})
         sub = a0.SubscriberSync(tm.publisher_topic("bbb"), a0.INIT_OLDEST,
@@ -207,6 +220,7 @@ async def test_rpc(sandbox):
             },
         }
 
+        # Normal request.
         rpc_data["packet"]["payload"] = base64.b64encode(b"request_0").decode(
             "utf-8")
         async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
@@ -214,6 +228,7 @@ async def test_rpc(sandbox):
             resp_pkt = await resp.json()
             assert base64.b64decode(resp_pkt.get("payload", "")) == b"success_1"
 
+        # Normal request.
         rpc_data["packet"]["payload"] = base64.b64encode(b"request_1").decode(
             "utf-8")
         async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
@@ -221,19 +236,136 @@ async def test_rpc(sandbox):
             resp_pkt = await resp.json()
             assert base64.b64decode(resp_pkt.get("payload", "")) == b"success_2"
 
+        # Missing "container".
         rpc_data.pop("container")
         async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
             assert resp.status == 400
             assert await resp.text() == "Missing required 'container' field."
         rpc_data["container"] = "aaa"
 
+        # Missing "topic".
         rpc_data.pop("topic")
         async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
             assert resp.status == 400
             assert await resp.text() == "Missing required 'topic' field."
         rpc_data["topic"] = "bbb"
 
-        async with session.post(endpoint, data="notjson") as resp:
+        # Not JSON.
+        async with session.post(endpoint, data="not json") as resp:
             assert resp.status == 400
+            assert await resp.text() == "Body must be json."
+
+        # Not JSON object.
+        async with session.post(endpoint,
+                                data=json.dumps("not object")) as resp:
+            assert resp.status == 400
+            assert await resp.text() == "Body must be a json object."
 
     assert ns.collected_requests == ["request_0", "request_1"]
+
+
+async def test_ws_pub(sandbox):
+    await sandbox.WaitUntilStartedAsync(timeout=1.0)
+    async with aiohttp.ClientSession() as session:
+        endpoint = "ws://localhost:24880/wsapi/pub"
+
+        ####################
+        # Basic test case. #
+        ####################
+
+        handshake_data = {
+            "container": "aaa",
+            "topic": "bbb",
+        }
+
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str(json.dumps(handshake_data))
+
+        async def send_payload(payload):
+            payload_utf8 = payload.encode("utf-8")
+            payload_b64 = base64.b64encode(payload_utf8).decode("utf-8")
+            await ws.send_str(json.dumps({"packet": {"payload": payload_b64}}))
+
+        await asyncio.gather(
+            send_payload("message_0"),
+            send_payload("message_1"),
+            send_payload("message_2"),
+        )
+        await asyncio.sleep(0.1)
+
+        tm = a0.TopicManager({"container": "aaa"})
+        sub = a0.SubscriberSync(tm.publisher_topic("bbb"), a0.INIT_OLDEST,
+                                a0.ITER_NEXT)
+        msgs = set()
+        while sub.has_next():
+            msgs.add(sub.next().payload)
+        assert len(msgs) == 3
+        assert msgs == set([b"message_0", b"message_1", b"message_2"])
+
+        await ws.close()
+
+        ##################
+        # Bad handshake. #
+        ##################
+
+        # Not JSON.
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str("not json")
+
+        reply = await ws.receive()
+        assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
+        assert reply.extra == "Message must be json."
+        assert ws.closed
+
+        # Not JSON object.
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str(json.dumps("not object"))
+
+        reply = await ws.receive()
+        assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
+        assert reply.extra == "Message must be a json object."
+        assert ws.closed
+
+        # Missing "container".
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str(json.dumps({"foo": "bar"}))
+
+        reply = await ws.receive()
+        assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
+        assert reply.extra == "Missing required 'container' field."
+        assert ws.closed
+
+        # Missing "topic".
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str(json.dumps({"container": "aaa"}))
+
+        reply = await ws.receive()
+        assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
+        assert reply.extra == "Missing required 'topic' field."
+        assert ws.closed
+
+        ###############
+        # Bad packet. #
+        ###############
+
+        # Not JSON.
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str(json.dumps(handshake_data))
+
+        await ws.send_str("not json")
+
+        reply = await ws.receive()
+        assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
+        assert reply.extra == "Message must be json."
+        assert ws.closed
+
+        # Not JSON object.
+        ws = await session.ws_connect(endpoint)
+        await ws.send_str(json.dumps(handshake_data))
+
+        await ws.send_str(json.dumps("not object"))
+
+        reply = await ws.receive()
+        assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
+        assert reply.extra == "Message must be a json object."
+        assert ws.closed
