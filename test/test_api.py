@@ -139,8 +139,8 @@ async def test_ls(sandbox):
 
 async def test_pub(sandbox):
     await sandbox.WaitUntilStartedAsync(timeout=1.0)
-    first_msg = b"Hello, World!"
-    second_msg = b"Goodbye, World!"
+    first_msg = "Hello, World!"
+    second_msg = "Goodbye, World!"
     async with aiohttp.ClientSession() as session:
         endpoint = "http://localhost:24880/api/pub"
         pub_data = {
@@ -283,7 +283,7 @@ async def test_rpc(sandbox):
         }
 
         # Normal request.
-        rpc_data["packet"]["payload"] = b"request_0"
+        rpc_data["packet"]["payload"] = "request_0"
         async with session.post(endpoint, data=json.dumps(rpc_data)) as resp:
             assert resp.status == 200
             resp_pkt = await resp.json()
