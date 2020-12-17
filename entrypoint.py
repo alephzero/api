@@ -258,7 +258,7 @@ async def sub_wshandler(request):
             payload = base64.b64encode(pkt.payload).decode("utf-8"),
         await ws.send_json({
             "headers": pkt.headers,
-            "payload":  payload,
+            "payload": payload,
         })
         if scheduler == "IMMEDIATE":
             pass
