@@ -194,7 +194,7 @@ async def test_pub(sandbox):
         while sub.has_next():
             msgs.append(sub.next().payload)
         assert len(msgs) == 2
-        assert msgs == [first_msg, second_msg]
+        assert msgs == [str.encode(first_msg), str.encode(second_msg)]
 
 
 async def test_pub_base64(sandbox):
@@ -322,7 +322,7 @@ async def test_rpc(sandbox):
             assert resp.status == 400
             assert await resp.text() == "Body must be a json object."
 
-    assert ns.collected_requests == ["request_0", "request_1"]
+    assert ns.collected_requests == [b"request_0", b"request_1"]
 
 
 async def test_rpc_base64(sandbox):
@@ -428,7 +428,7 @@ async def test_ws_pub(sandbox):
         while sub.has_next():
             msgs.add(sub.next().payload)
         assert len(msgs) == 3
-        assert msgs == set(["message_0", "message_1", "message_2"])
+        assert msgs == set([b"message_0", b"message_1", b"message_2"])
 
         await ws.close()
 

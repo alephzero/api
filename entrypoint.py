@@ -143,6 +143,7 @@ async def rpc_handler(request):
     client = a0.AioRpcClient(topic)
     resp = await client.send(a0.Packet(headers, payload))
 
+    resp_payload = resp.payload
     if encoding == "base64":
         resp_payload = base64.b64encode(resp.payload).decode("utf-8")
 
