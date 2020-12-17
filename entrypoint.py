@@ -75,7 +75,7 @@ async def pub_handler(request):
     payload = cmd["packet"].get("payload", "")
     encoding = cmd["packet"].get("encoding", "")
 
-    if encoding is "base64":
+    if encoding == "base64":
         payload = base64.b64decode(payload)
 
     # Find the absolute topic.
@@ -130,7 +130,7 @@ async def rpc_handler(request):
     payload = cmd["packet"].get("payload", "")
     encoding = cmd["packet"].get("encoding", "")
 
-    if encoding is "base64":
+    if encoding == "base64":
         payload = base64.b64decode(payload)
 
     # Find the absolute topic.
@@ -143,7 +143,7 @@ async def rpc_handler(request):
     client = a0.AioRpcClient(topic)
     resp = await client.send(a0.Packet(headers, payload))
 
-    if encoding is "base64":
+    if encoding == "base64":
         resp_payload = base64.b64encode(resp.payload).decode("utf-8")
 
     return aiohttp.web.json_response({
@@ -213,7 +213,7 @@ async def pub_wshandler(request):
         payload = cmd["packet"].get("payload", "")
         encoding = cmd["packet"].get("encoding", "")
 
-        if encoding is "base64":
+        if encoding == "base64":
             payload = base64.b64decode(payload)
 
         publisher.pub(headers, payload)
@@ -251,10 +251,9 @@ async def sub_wshandler(request):
     scheduler = cmd.get("scheduler", "IMMEDIATE")
     encoding = cmd.get("encoding", "")
 
-
     async for pkt in a0.aio_sub(tm.subscriber_topic("topic"), init_, iter_):
         payload = pkt.payload
-        if encoding is "base64":
+        if encoding == "base64":
             payload = base64.b64encode(pkt.payload).decode("utf-8"),
         await ws.send_json({
             "headers": pkt.headers,

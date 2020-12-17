@@ -196,6 +196,7 @@ async def test_pub(sandbox):
         assert len(msgs) == 2
         assert msgs == [first_msg, second_msg]
 
+
 async def test_pub_base64(sandbox):
     await sandbox.WaitUntilStartedAsync(timeout=1.0)
     first_msg = "Hello, World!"
@@ -322,6 +323,7 @@ async def test_rpc(sandbox):
             assert await resp.text() == "Body must be a json object."
 
     assert ns.collected_requests == ["request_0", "request_1"]
+
 
 async def test_rpc_base64(sandbox):
     await sandbox.WaitUntilStartedAsync(timeout=1.0)
@@ -495,6 +497,7 @@ async def test_ws_pub(sandbox):
         assert reply.type in [aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED]
         assert reply.extra == "Message must be a json object."
         assert ws.closed
+
 
 async def test_ws_pub_base64(sandbox):
     await sandbox.WaitUntilStartedAsync(timeout=1.0)
