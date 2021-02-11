@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import asyncio
 import base64
 import json
 import os
+import types
 
 import a0
 import aiohttp
@@ -290,14 +292,14 @@ async def prpc_wshandler(request):
     ns.q = asyncio.Queue()
 
     def prpc_callback(pkt_view, done):
-        pkt = Packet(pkt_view)
-        ns.loop.call_soon_threadsafe(ns.q.put_nowait, ((pkt, done),))
+        pkt = a0.Packet(pkt_view)
+        ns.loop.call_soon_threadsafe(ns.q.put_nowait, (pkt, done))
 
     prpc_client = a0.PrpcClient(tm.prpc_client_topic("topic"))
     prpc_client.connect(a0.Packet(headers, base64.b64decode(payload)), prpc_callback)
 
     while True:
-        pkt, done = await queue.get()
+        pkt, done = await ns.q.get()
         await ws.send_json({
             "headers": pkt.headers,
             "payload": base64.b64encode(pkt.payload).decode("utf-8"),
