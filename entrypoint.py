@@ -296,7 +296,8 @@ async def prpc_wshandler(request):
         ns.loop.call_soon_threadsafe(ns.q.put_nowait, (pkt, done))
 
     prpc_client = a0.PrpcClient(tm.prpc_client_topic("topic"))
-    prpc_client.connect(a0.Packet(headers, base64.b64decode(payload)), prpc_callback)
+    req = a0.Packet(headers, base64.b64decode(payload))
+    prpc_client.connect(req, prpc_callback)
 
     while True:
         pkt, done = await ns.q.get()
