@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
+import asyncio
 import base64
 import json
 import os
+import types
 
 import a0
 import aiohttp
@@ -242,6 +244,75 @@ async def sub_wshandler(request):
             await ws.receive()
 
 
+# ws = new WebSocket(`ws://${api_addr}/wsapi/prpc`)
+# ws.onopen = () => {
+#     ws.send(JSON.stringify({
+#         container: "...",
+#         topic: "...",
+#         packet: {
+#             headers: [
+#                 ["key", "val"],
+#                 ...
+#             ],
+#             payload: window.btoa("..."),
+#         },
+#     }))
+# }
+# ws.onmessage = (evt) => {
+#     ... evt.data ...
+# }
+async def prpc_wshandler(request):
+    ws = aiohttp.web.WebSocketResponse()
+    await ws.prepare(request)
+
+    msg = await ws.receive()
+
+    try:
+        cmd = json.loads(msg.data)
+    except json.JSONDecodeError:
+        await ws.close(message=b"Message must be json.")
+        return
+
+    # Check cmd is a dict.
+    if type(cmd) != dict:
+        await ws.close(message=b"Message must be a json object.")
+        return
+
+    # Fill optional fields.
+    cmd["packet"] = cmd.get("packet", {})
+    headers = cmd["packet"].get("headers", [])
+    payload = cmd["packet"].get("payload", "")
+
+    scheduler = cmd.get("scheduler", "IMMEDIATE")
+
+    tm = a0.TopicManager(container="api", prpc_client_aliases={"topic": cmd})
+
+    ns = types.SimpleNamespace()
+    ns.loop = asyncio.get_event_loop()
+    ns.q = asyncio.Queue()
+
+    def prpc_callback(pkt_view, done):
+        pkt = a0.Packet(pkt_view)
+        ns.loop.call_soon_threadsafe(ns.q.put_nowait, (pkt, done))
+
+    prpc_client = a0.PrpcClient(tm.prpc_client_topic("topic"))
+    req = a0.Packet(headers, base64.b64decode(payload))
+    prpc_client.connect(req, prpc_callback)
+
+    while True:
+        pkt, done = await ns.q.get()
+        await ws.send_json({
+            "headers": pkt.headers,
+            "payload": base64.b64encode(pkt.payload).decode("utf-8"),
+        })
+        if done:
+            break
+        if scheduler == "IMMEDIATE":
+            pass
+        elif scheduler == "ON_ACK":
+            await ws.receive()
+
+
 a0.InitGlobalTopicManager({"container": "api"})
 heartbeat = a0.Heartbeat()
 
@@ -252,6 +323,7 @@ app.add_routes([
     aiohttp.web.post("/api/rpc", rpc_handler),
     aiohttp.web.get("/wsapi/pub", pub_wshandler),
     aiohttp.web.get("/wsapi/sub", sub_wshandler),
+    aiohttp.web.get("/wsapi/prpc", prpc_wshandler),
 ])
 cors = aiohttp_cors.setup(
     app,
