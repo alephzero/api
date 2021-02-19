@@ -299,18 +299,21 @@ async def prpc_wshandler(request):
     req = a0.Packet(headers, base64.b64decode(payload))
     prpc_client.connect(req, prpc_callback)
 
-    while True:
-        pkt, done = await ns.q.get()
-        await ws.send_json({
-            "headers": pkt.headers,
-            "payload": base64.b64encode(pkt.payload).decode("utf-8"),
-        })
-        if done:
-            break
-        if scheduler == "IMMEDIATE":
-            pass
-        elif scheduler == "ON_ACK":
-            await ws.receive()
+    try:
+        while True:
+            pkt, done = await ns.q.get()
+            await ws.send_json({
+                "headers": pkt.headers,
+                "payload": base64.b64encode(pkt.payload).decode("utf-8"),
+            })
+            if done:
+                break
+            if scheduler == "IMMEDIATE":
+                pass
+            elif scheduler == "ON_ACK":
+                await ws.receive()
+    except asyncio.CancelledError:
+        prpc_client.cancel(req.id)
 
 
 a0.InitGlobalTopicManager({"container": "api"})
