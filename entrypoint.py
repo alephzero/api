@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import collections
 import json
 import os
 import types
@@ -284,16 +285,27 @@ async def prpc_wshandler(request):
     payload = cmd["packet"].get("payload", "")
 
     scheduler = cmd.get("scheduler", "IMMEDIATE")
+    queue_length = int(cmd.get("queue_length", 100))  # No unlimited queues.
+
+    if queue_length <= 0:
+        await ws.close(message=b"queue_length must be > 0.")
+        return
 
     tm = a0.TopicManager(container="api", prpc_client_aliases={"topic": cmd})
 
     ns = types.SimpleNamespace()
     ns.loop = asyncio.get_event_loop()
-    ns.q = asyncio.Queue()
+    ns.cond = asyncio.Condition()
+    ns.q = collections.deque(maxlen=queue_length)
+
+    async def put(data):
+        async with ns.cond:
+            ns.q.append(data)
+            ns.cond.notify()
 
     def prpc_callback(pkt_view, done):
         pkt = a0.Packet(pkt_view)
-        ns.loop.call_soon_threadsafe(ns.q.put_nowait, (pkt, done))
+        asyncio.run_coroutine_threadsafe(put((pkt, done)), loop=ns.loop)
 
     prpc_client = a0.PrpcClient(tm.prpc_client_topic("topic"))
     req = a0.Packet(headers, base64.b64decode(payload))
@@ -301,7 +313,9 @@ async def prpc_wshandler(request):
 
     try:
         while True:
-            pkt, done = await ns.q.get()
+            async with ns.cond:
+                await ns.cond.wait_for(lambda: len(ns.q) > 0)
+                pkt, done = ns.q.popleft()
             await ws.send_json({
                 "headers": pkt.headers,
                 "payload": base64.b64encode(pkt.payload).decode("utf-8"),
