@@ -300,6 +300,7 @@ async def prpc_wshandler(request):
 
     async def put(data):
         async with ns.cond:
+            # If q is full, oldest message will be discarded upon insertion.
             ns.q.append(data)
             ns.cond.notify()
 
