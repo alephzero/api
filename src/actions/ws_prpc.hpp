@@ -123,7 +123,7 @@ struct WSPrpc {
                 // Save the event count before sending the message.
                 // Depending on the scheduler, the client might block until
                 // the event counter increments.
-                uint64_t pre_send_cnt = *curr_cnt;
+                int64_t pre_send_cnt = *curr_cnt;
 
                 // Save views and perform work we don't want to do on the
                 // event loop.
