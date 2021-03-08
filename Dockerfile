@@ -2,9 +2,10 @@
 # Builder #
 ###########
 
-FROM alpine:3.10 as builder
+FROM ubuntu:20.04 as builder
 
-RUN apk add --no-cache g++ git linux-headers make python3-dev
+RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
+    g++ git make wget zlib1g-dev
 
 RUN mkdir -p /alephzero && \
     cd /alephzero && \
@@ -12,30 +13,49 @@ RUN mkdir -p /alephzero && \
     cd /alephzero/alephzero && \
     make install -j
 
-RUN cd /alephzero && \
-    git clone https://github.com/alephzero/py.git && \
-    cd /alephzero/py && \
-    pip3 install -r requirements.txt && \
-    python3 setup.py install
+RUN mkdir -p /uNetworking && \
+    cd /uNetworking && \
+    git clone --depth 1 --branch v0.7.1 https://github.com/uNetworking/uSockets.git && \
+    git clone --depth 1 --branch v18.23.0  https://github.com/uNetworking/uWebSockets.git && \
+    cd /uNetworking/uSockets && \
+    make -j && \
+    mv /uNetworking/uSockets/uSockets.a /uNetworking/uSockets/libuSockets.a
+
+RUN mkdir -p /nlohmann && \
+    cd /nlohmann && \
+    wget https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
+
+WORKDIR /
+COPY src /src
+COPY api.cpp /api.cpp
+
+# Move the following into a Makefile
+ARG mode=opt
+RUN g++ \
+    -o /api.bin \
+    -std=c++17 \
+    $([ "$mode" = "opt" ] && echo "-O3 -flto") \
+    $([ "$mode" = "dbg" ] && echo "-O0 -g3") \
+    $([ "$mode" = "cov" ] && echo "-O0 -g3 -fprofile-arcs -ftest-coverage --coverage") \
+    -I/ \
+    -I/uNetworking/uSockets/src \
+    -I/uNetworking/uWebSockets/src \
+    /api.cpp \
+    -L/lib \
+    -L/uNetworking/uSockets \
+    -Wl,-Bstatic \
+    -lz \
+    -lalephzero \
+    -luSockets \
+    -Wl,-Bdynamic \
+    -lpthread
 
 ##########
 # Deploy #
 ##########
 
-FROM alpine:3.10
+FROM ubuntu:20.04
 
-RUN apk add --no-cache g++ python3-dev
+COPY --from=builder /api.bin /
 
-COPY requirements.txt /
-
-RUN pip3 install -r /requirements.txt && \
-    rm -rf /root/.cache/pip/*
-
-COPY --from=builder /usr/include/a0 /usr/include/a0
-COPY --from=builder /usr/include/a0.h /usr/include/a0.h
-COPY --from=builder /usr/lib/libalephzero.* /usr/lib/
-COPY --from=builder /usr/lib/python3.7/site-packages/a0.* /usr/lib/python3.7/site-packages/
-COPY --from=builder /usr/lib/python3.7/site-packages/alephzero* /usr/lib/python3.7/site-packages/
-COPY entrypoint.py /entrypoint.py
-
-ENTRYPOINT ["/entrypoint.py"]
+ENTRYPOINT ["/api.bin"]

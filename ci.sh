@@ -18,4 +18,4 @@ docker run \
   -w /alephzero \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /usr/bin/docker:/usr/bin/docker \
-  alephzero_ci act $@
+  alephzero_ci act -P ubuntu-latest=nektos/act-environments-ubuntu:18.04 $@
