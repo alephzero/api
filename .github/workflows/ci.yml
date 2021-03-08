@@ -24,7 +24,7 @@ jobs:
     - name: Build API Test
       run: docker build -t alephzero_api_test -f test/Dockerfile .
     - name: Run Test
-      run: docker run --rm -it alephzero_api_test
+      run: docker run --rm alephzero_api_test
     # TODO(lshamis): Add coverage
     #   run: bash <(curl -s https://codecov.io/bash)
 
