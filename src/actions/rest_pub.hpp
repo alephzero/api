@@ -7,6 +7,8 @@
 #include "src/request_message.hpp"
 #include "src/rest_helpers.hpp"
 
+namespace a0::api {
+
 // fetch(`http://${api_addr}/api/pub`, {
 //     method: "POST",
 //     body: JSON.stringify({
@@ -60,3 +62,5 @@ static inline void rest_pub(uWS::HttpResponse<false>* res,
 
   res->onAborted([]() {});
 }
+
+}  // namespace a0::api

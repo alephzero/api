@@ -4,6 +4,8 @@
 
 #include <memory>
 
+namespace a0::api {
+
 // ws = new WebSocket(`ws://${api_addr}/wsapi/pub`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
@@ -95,3 +97,5 @@ struct WSPub {
     };
   }
 };
+
+}  // namespace a0::api

@@ -3,6 +3,8 @@
 #include <App.h>
 #include <signal.h>
 
+namespace a0::api {
+
 struct GlobalState {
   uWS::Loop* event_loop;
   // The following can be used anywhere.
@@ -51,3 +53,5 @@ void attach_signal_handler() {
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGINT, &sigact, NULL);
 }
+
+}  // namespace a0::api

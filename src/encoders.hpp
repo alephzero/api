@@ -4,6 +4,8 @@
 #include <string_view>
 #include <utility>
 
+namespace a0::api {
+
 namespace base64 {
 
 constexpr std::string_view kCharSet =
@@ -88,3 +90,5 @@ inline static const std::
       };
   return dec;
 }
+
+}  // namespace a0::api

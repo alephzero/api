@@ -4,6 +4,8 @@
 
 #include <unordered_map>
 
+namespace a0::api {
+
 enum struct scheduler_t {
   IMMEDIATE,
   ON_ACK,
@@ -35,3 +37,5 @@ const std::unordered_map<std::string, a0_subscriber_iter_t>& iter_map() {
   };
   return val;
 }
+
+}  // namespace a0::api

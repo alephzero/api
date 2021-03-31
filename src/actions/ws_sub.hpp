@@ -6,6 +6,8 @@
 
 #include "src/options.hpp"
 
+namespace a0::api {
+
 // ws = new WebSocket(`ws://${api_addr}/wsapi/sub`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
@@ -177,3 +179,5 @@ struct WSSub {
     };
   }
 };
+
+}  // namespace a0::api

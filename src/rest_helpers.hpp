@@ -4,6 +4,8 @@
 
 #include <string_view>
 
+namespace a0::api {
+
 void rest_respond(uWS::HttpResponse<false>* res,
                   std::string_view status,
                   std::vector<std::pair<std::string, std::string>> headers,
@@ -16,3 +18,5 @@ void rest_respond(uWS::HttpResponse<false>* res,
   }
   res->end(body);
 }
+
+}  // namespace a0::api

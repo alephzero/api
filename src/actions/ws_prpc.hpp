@@ -6,6 +6,8 @@
 
 #include "src/options.hpp"
 
+namespace a0::api {
+
 // ws = new WebSocket(`ws://${api_addr}/wsapi/prpc`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
@@ -211,3 +213,5 @@ struct WSPrpc {
     };
   }
 };
+
+}  // namespace a0::api

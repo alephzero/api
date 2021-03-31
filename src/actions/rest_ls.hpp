@@ -9,6 +9,8 @@
 #include "src/rest_helpers.hpp"
 #include "src/strutil.hpp"
 
+namespace a0::api {
+
 // fetch(`http://${api_addr}/api/ls`)
 // .then((r) => { return r.text() })
 // .then((msg) => { console.log(msg) })
@@ -47,3 +49,5 @@ static inline void rest_ls(uWS::HttpResponse<false>* res,
 
   rest_respond(res, "200", {}, out.dump());
 }
+
+}  // namespace a0::api

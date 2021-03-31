@@ -8,6 +8,8 @@
 #include "src/encoders.hpp"
 #include "src/strutil.hpp"
 
+namespace a0::api {
+
 struct RequestMessage {
   // Original client message.
   nlohmann::json raw_msg;
@@ -150,3 +152,5 @@ static inline RequestMessage ParseRequestMessage(std::string_view str) {
 
   return msg;
 }
+
+}  // namespace a0::api

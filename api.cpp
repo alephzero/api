@@ -16,8 +16,8 @@
 // * API version isn't part of the path: /api/v2/...?
 
 int main() {
-  auto CONTAINER = env("CONTAINER", "api");
-  auto PORT_STR = env("PORT_STR", "24880");
+  auto CONTAINER = a0::api::env("CONTAINER", "api");
+  auto PORT_STR = a0::api::env("PORT_STR", "24880");
 
   int PORT;
   try {
@@ -36,20 +36,20 @@ int main() {
   });
 
   uWS::App app;
-  app.get("/api/ls", rest_ls);
-  app.post("/api/pub", rest_pub);
-  app.post("/api/rpc", rest_rpc);
-  app.ws<WSPub::Data>("/wsapi/pub", WSPub::behavior());
-  app.ws<WSSub::Data>("/wsapi/sub", WSSub::behavior());
-  app.ws<WSPrpc::Data>("/wsapi/prpc", WSPrpc::behavior());
+  app.get("/api/ls", a0::api::rest_ls);
+  app.post("/api/pub", a0::api::rest_pub);
+  app.post("/api/rpc", a0::api::rest_rpc);
+  app.ws<a0::api::WSPub::Data>("/wsapi/pub", a0::api::WSPub::behavior());
+  app.ws<a0::api::WSSub::Data>("/wsapi/sub", a0::api::WSSub::behavior());
+  app.ws<a0::api::WSPrpc::Data>("/wsapi/prpc", a0::api::WSPrpc::behavior());
   app.listen(PORT, [&](auto* socket) {
-    global()->listen_socket = socket;
-    global()->heartbeat = std::make_unique<a0::Heartbeat>();
+    a0::api::global()->listen_socket = socket;
+    a0::api::global()->heartbeat = std::make_unique<a0::Heartbeat>();
   });
 
-  global()->event_loop = uWS::Loop::get();
-  global()->running = true;
-  attach_signal_handler();
+  a0::api::global()->event_loop = uWS::Loop::get();
+  a0::api::global()->running = true;
+  a0::api::attach_signal_handler();
 
   app.run();
 }

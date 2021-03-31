@@ -4,6 +4,8 @@
 #include <string_view>
 #include <vector>
 
+namespace a0::api {
+
 struct strutil {
   template <typename... Arg>
   static std::string cat(Arg&&... arg) {
@@ -52,3 +54,5 @@ struct strutil {
     fprintf(stderr, "%s] %.*s\n", now_str, (int)str.size(), str.data());
   }
 };
+
+}  // namespace a0::api
