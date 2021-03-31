@@ -5,9 +5,9 @@
 
 #include <filesystem>
 
-#include "src/env.hpp"
-#include "src/rest_helpers.hpp"
-#include "src/strutil.hpp"
+#include "a0/api/env.hpp"
+#include "a0/api/rest_helpers.hpp"
+#include "a0/api/strutil.hpp"
 
 namespace a0::api {
 

@@ -5,8 +5,8 @@
 
 #include <string>
 
-#include "src/encoders.hpp"
-#include "src/strutil.hpp"
+#include "a0/api/encoders.hpp"
+#include "a0/api/strutil.hpp"
 
 namespace a0::api {
 

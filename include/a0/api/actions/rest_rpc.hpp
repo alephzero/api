@@ -4,9 +4,9 @@
 
 #include <sstream>
 
-#include "src/global_state.hpp"
-#include "src/request_message.hpp"
-#include "src/rest_helpers.hpp"
+#include "a0/api/global_state.hpp"
+#include "a0/api/request_message.hpp"
+#include "a0/api/rest_helpers.hpp"
 
 namespace a0::api {
 

@@ -4,8 +4,8 @@
 
 #include <sstream>
 
-#include "src/request_message.hpp"
-#include "src/rest_helpers.hpp"
+#include "a0/api/request_message.hpp"
+#include "a0/api/rest_helpers.hpp"
 
 namespace a0::api {
 

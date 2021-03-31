@@ -26,7 +26,7 @@ RUN mkdir -p /nlohmann && \
     wget https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
 
 WORKDIR /
-COPY src /src
+COPY include /include
 COPY api.cpp /api.cpp
 
 # Move the following into a Makefile
@@ -38,6 +38,7 @@ RUN g++ \
     $([ "$mode" = "dbg" ] && echo "-O0 -g3") \
     $([ "$mode" = "cov" ] && echo "-O0 -g3 -fprofile-arcs -ftest-coverage --coverage") \
     -I/ \
+    -I/include \
     -I/uNetworking/uSockets/src \
     -I/uNetworking/uWebSockets/src \
     /api.cpp \

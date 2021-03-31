@@ -1,13 +1,13 @@
 #include <App.h>
 #include <a0.h>
 
-#include "src/actions/rest_ls.hpp"
-#include "src/actions/rest_pub.hpp"
-#include "src/actions/rest_rpc.hpp"
-#include "src/actions/ws_prpc.hpp"
-#include "src/actions/ws_pub.hpp"
-#include "src/actions/ws_sub.hpp"
-#include "src/global_state.hpp"
+#include "a0/api/actions/rest_ls.hpp"
+#include "a0/api/actions/rest_pub.hpp"
+#include "a0/api/actions/rest_rpc.hpp"
+#include "a0/api/actions/ws_prpc.hpp"
+#include "a0/api/actions/ws_pub.hpp"
+#include "a0/api/actions/ws_sub.hpp"
+#include "a0/api/global_state.hpp"
 
 // TODO(lshamis): The following decisions were made for backwards compatability.
 // * (En/De)coding defaults to base64. Should default to none.
