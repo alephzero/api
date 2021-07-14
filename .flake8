@@ -1,6 +1,5 @@
 [flake8]
 max-line-length = 100
 
-# TODO: Fix the code and remove this.
 ignore =
-  E722,  # bare-except
+  F841,  # local variable is assigned to but never used

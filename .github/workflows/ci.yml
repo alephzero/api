@@ -16,24 +16,17 @@ jobs:
     name: Unit Test
 
     runs-on: ubuntu-latest
-    container:
-      image: 'ubuntu:20.04'
 
     steps:
     - uses: actions/checkout@v2
-    - name: install core deps
-      run: >
-        apt update &&
-        apt install --no-install-recommends -y curl g++ git make pkg-config python3-dev python3-pip &&
-        python3 -m pip install -U pip wheel setuptools pytest pytest-cov
-    - name: install alephzero
-      run: python3 -m pip install alephzero
-    - name: install pip requirements
-      run: python3 -m pip install -r requirements.txt
-    - name: run tests
-      run: python3 -m pytest -v --cov=. test/
-    - name: upload coverage
-      run: bash <(curl -s https://codecov.io/bash)
+    - name: Build API
+      run: docker build -t alephzero_api --build-arg=mode=cov .
+    - name: Build API Test
+      run: docker build -t alephzero_api_test -f test/Dockerfile .
+    - name: Run Test
+      run: docker run --rm alephzero_api_test
+    # TODO(lshamis): Add coverage
+    #   run: bash <(curl -s https://codecov.io/bash)
 
   lint:
     name: Lint
@@ -45,10 +38,21 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: install deps
-      run: >
-        apt update &&
-        apt install --no-install-recommends -y python3-pip && python3 -m pip install -U flake8 yapf
+      run: |
+        apt update
+        apt install --no-install-recommends -y clang-format git python3-pip
+        python3 -m pip install -U flake8 yapf
     - name: flake8
       run: python3 -m flake8
     - name: yapf
       run: python3 -m yapf -d -r .
+    - name: clang-format
+      run: |
+        shopt -s globstar
+        git init
+        git config --global user.name "none"
+        git config --global user.email "none"
+        git add **
+        git commit -am "INITIAL STATE"
+        clang-format -i --style=file include/** src/** || true
+        git --no-pager diff --exit-code

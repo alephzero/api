@@ -1,0 +1,17 @@
+---
+BasedOnStyle:  Chromium
+---
+Language:                            Cpp
+ColumnLimit:                         0
+
+IncludeBlocks:       Regroup
+IncludeCategories:
+  - Regex:           '^<a0/.*\.(h|hpp)>'
+    Priority:        1
+  - Regex:           '^<.*\.(h|hh|hpp)>'
+    Priority:        2
+  - Regex:           '^<.*'
+    Priority:        3
+  - Regex:           '.*'
+    Priority:        4
+SortIncludes: true
