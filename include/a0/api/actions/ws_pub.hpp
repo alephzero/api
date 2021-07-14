@@ -9,10 +9,8 @@ namespace a0::api {
 // ws = new WebSocket(`ws://${api_addr}/wsapi/pub`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
-//         container: "...",            // required
-//         topic: "...",                // required
-//         request_encoding: "base64"   // optional, one of "none", "base64"
-//         response_encoding: "base64"  // optional, one of "none", "base64"
+//         container: "...",                 // required
+//         topic: "...",                     // required
 //     }))
 // }
 // // later, after onopen completes:
@@ -24,6 +22,7 @@ namespace a0::api {
 //             ],
 //             payload: window.btoa("..."),  // required
 //         },
+//         request_encoding: "base64",       // optional, one of "none", "base64"
 // }))
 struct WSPub {
   struct Data {

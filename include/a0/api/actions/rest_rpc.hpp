@@ -63,20 +63,19 @@ static inline void rest_rpc(uWS::HttpResponse<false>* res,
     // TODO(lshamis): This hurts! There must be a better way to manage the
     // memory here.
     auto* rpc_client = new a0::RpcClient(tm.rpc_client_topic("target"));
-    rpc_client->send(std::move(req_msg.pkt), [res, rpc_client,
-                                              encoder =
-                                                  req_msg.response_encoder](
-                                                 a0::PacketView pkt_view) {
-      global()->event_loop->defer([res, hdrs = pkt_view.headers(),
-                                   payload = encoder(pkt_view.payload())]() {
+
+    auto callback = [res, rpc_client, encoder = req_msg.response_encoder](a0::PacketView pkt_view) {
+      global()->event_loop->defer([res, rpc_client, hdrs = pkt_view.headers(), payload = encoder(pkt_view.payload())]() {
         nlohmann::json out = {
             {"headers", hdrs},
             {"payload", payload},
         };
         rest_respond(res, "200", {}, out.dump());
+        delete rpc_client;
       });
-      rpc_client->async_close([rpc_client]() { delete rpc_client; });
-    });
+    };
+
+    rpc_client->send(std::move(req_msg.pkt), callback);
   });
 
   res->onAborted([]() {});
