@@ -33,7 +33,7 @@ struct WSPub {
     return {
         .compression = uWS::SHARED_COMPRESSOR,
         .maxPayloadLength = 16 * 1024 * 1024,
-        .idleTimeout = 300,
+        .idleTimeout = 0,
         .maxBackpressure = 16 * 1024 * 1024,
         .closeOnBackpressureLimit = false,
         .resetIdleTimeoutOnSend = true,
