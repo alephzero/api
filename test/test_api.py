@@ -155,6 +155,10 @@ def test_pub(sandbox):
         "container": "aaa",
         "topic": "bbb",
         "packet": {
+            "headers": [
+                ["xyz", "123"],
+                ["zzz", "www"],
+            ],
             "payload": btoa("Hello, World!"),
         },
     }
@@ -200,11 +204,25 @@ def test_pub(sandbox):
     tm = a0.TopicManager({"container": "aaa"})
     sub = a0.SubscriberSync(tm.publisher_topic("bbb"), a0.INIT_OLDEST,
                             a0.ITER_NEXT)
+    hdrs = []
     msgs = []
     while sub.has_next():
-        msgs.append(sub.next().payload)
+        pkt = sub.next()
+        hdrs.append(list(pkt.headers))  # Inspect copies of headers.
+        msgs.append(pkt.payload)
+    assert len(hdrs) == 2
     assert len(msgs) == 2
     assert msgs == [b"Hello, World!", b"Goodbye, World!"]
+    for hdr in hdrs:
+        for expected in pub_data["packet"]["headers"]:
+            hdr.remove(tuple(expected))
+        assert set([k for k, v in hdr]) == set([
+            "a0_publisher_id",
+            "a0_publisher_seq",
+            "a0_time_mono",
+            "a0_time_wall",
+            "a0_transport_seq",
+        ])
 
 
 def test_rpc(sandbox):
