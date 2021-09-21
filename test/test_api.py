@@ -21,7 +21,6 @@ pytestmark = pytest.mark.asyncio
 
 
 class RunApi:
-
     class State(enum.Enum):
         DEAD = 0
         CREATED = 1
@@ -30,41 +29,29 @@ class RunApi:
     def __init__(self):
         self.api_proc = None
 
-    def start(self, use_valgrind=True):
+    def start(self):
         assert not self.api_proc
 
-        cmd = ["/api.bin"]
-        if use_valgrind:
-            valgrind_args = [
-                "--leak-check=full",
-                "--error-exitcode=125",
-            ]
-            cmd = ["valgrind"] + valgrind_args + cmd
-
-        self.api_proc = subprocess.Popen(cmd, env=os.environ.copy())
-
         ns = types.SimpleNamespace()
-
         ns.state = RunApi.State.CREATED
         ns.state_cv = threading.Condition()
 
-        def _on_heartbeat_detected():
+        def check_ready(pkt):
             with ns.state_cv:
                 ns.state = RunApi.State.STARTED
                 ns.state_cv.notify_all()
 
-        def _on_heartbeat_missed():
-            with ns.state_cv:
-                ns.state = RunApi.State.DEAD
-                ns.state_cv.notify_all()
+        sub = a0.Subscriber("api_ready", a0.INIT_AWAIT_NEW, a0.ITER_NEXT, check_ready)
 
-        self._heartbeat_listener = a0.HeartbeatListener("api",
-                                                        _on_heartbeat_detected,
-                                                        _on_heartbeat_missed)
+        self.api_proc = subprocess.Popen(
+            ["valgrind", "--leak-check=full", "--error-exitcode=125", "/api.bin"],
+            env=os.environ.copy(),
+        )
 
         with ns.state_cv:
             assert ns.state_cv.wait_for(
-                lambda: ns.state == RunApi.State.STARTED, timeout=10)
+                lambda: ns.state == RunApi.State.STARTED, timeout=10
+            )
 
     def shutdown(self):
         assert self.api_proc
@@ -84,17 +71,6 @@ def sandbox():
     api.shutdown()
 
 
-@pytest.fixture()
-def leaky_sandbox():
-    tmp_dir = tempfile.TemporaryDirectory(prefix="/dev/shm/")
-    os.environ["A0_ROOT"] = tmp_dir.name
-    os.environ["PORT_STR"] = str(random.randint(49152, 65535))
-    api = RunApi()
-    api.start(use_valgrind=False)
-    yield api
-    api.shutdown()
-
-
 def btoa(s):
     return base64.b64encode(s.encode("utf-8")).decode("utf-8")
 
@@ -108,58 +84,32 @@ def test_ls(sandbox):
 
     assert resp.status_code == 200
     assert resp.headers["Access-Control-Allow-Origin"] == "*"
-    assert resp.json() == [
-        {
-            "filename": "a0_heartbeat__api",
-            "protocol": "heartbeat",
-            "container": "api",
-        },
-    ]
+    assert resp.json() == ["alephzero/api_ready.pubsub.a0"]
 
-    a0.File("a0_pubsub__aaa__bbb")
-    a0.File("a0_pubsub__aaa__ccc")
-    a0.File("a0_rpc__bbb__ddd")
+    a0.File("aaa/bbb.pubsub.a0")
+    a0.File("aaa/ccc.pubsub.a0")
+    a0.File("bbb/ddd.rpc.a0")
 
     resp = requests.get(f"http://localhost:{os.environ['PORT_STR']}/api/ls")
     assert resp.status_code == 200
     assert resp.json() == [
-        {
-            "filename": "a0_heartbeat__api",
-            "protocol": "heartbeat",
-            "container": "api",
-        },
-        {
-            "filename": "a0_pubsub__aaa__bbb",
-            "protocol": "pubsub",
-            "container": "aaa",
-            "topic": "bbb",
-        },
-        {
-            "filename": "a0_pubsub__aaa__ccc",
-            "protocol": "pubsub",
-            "container": "aaa",
-            "topic": "ccc",
-        },
-        {
-            "filename": "a0_rpc__bbb__ddd",
-            "protocol": "rpc",
-            "container": "bbb",
-            "topic": "ddd",
-        },
+        "aaa/bbb.pubsub.a0",
+        "aaa/ccc.pubsub.a0",
+        "alephzero/api_ready.pubsub.a0",
+        "bbb/ddd.rpc.a0",
     ]
 
 
 def test_pub(sandbox):
     endpoint = f"http://localhost:{os.environ['PORT_STR']}/api/pub"
     pub_data = {
-        "container": "aaa",
-        "topic": "bbb",
+        "topic": "mytopic",
         "packet": {
             "headers": [
                 ["xyz", "123"],
                 ["zzz", "www"],
             ],
-            "payload": btoa("Hello, World!"),
+            "payload": "Hello, World!",
         },
     }
 
@@ -169,27 +119,20 @@ def test_pub(sandbox):
     assert resp.text == "success"
 
     # None request_encoding.
-    pub_data["request_encoding"] = "none"
-    pub_data["packet"]["payload"] = "Goodbye, World!"
+    pub_data["request_encoding"] = "base64"
+    pub_data["packet"]["payload"] = btoa("Goodbye, World!")
     resp = requests.post(endpoint, data=json.dumps(pub_data))
     assert resp.status_code == 200
     assert resp.text == "success"
-    pub_data["packet"]["payload"] = btoa("Hello, World!")
+    pub_data["packet"]["payload"] = "Hello, World!"
     pub_data.pop("request_encoding")
-
-    # Missing "container".
-    pub_data.pop("container")
-    resp = requests.post(endpoint, data=json.dumps(pub_data))
-    assert resp.status_code == 400
-    assert resp.text == "Request missing required field: container"
-    pub_data["container"] = "aaa"
 
     # Missing "topic".
     pub_data.pop("topic")
     resp = requests.post(endpoint, data=json.dumps(pub_data))
     assert resp.status_code == 400
     assert resp.text == "Request missing required field: topic"
-    pub_data["topic"] = "bbb"
+    pub_data["topic"] = "mytopic"
 
     # Not JSON.
     resp = requests.post(endpoint, data="not json")
@@ -201,9 +144,7 @@ def test_pub(sandbox):
     assert resp.status_code == 400
     assert resp.text == "Request must be a json object."
 
-    tm = a0.TopicManager({"container": "aaa"})
-    sub = a0.SubscriberSync(tm.publisher_topic("bbb"), a0.INIT_OLDEST,
-                            a0.ITER_NEXT)
+    sub = a0.SubscriberSync("mytopic", a0.INIT_OLDEST, a0.ITER_NEXT)
     hdrs = []
     msgs = []
     while sub.has_next():
@@ -216,13 +157,13 @@ def test_pub(sandbox):
     for hdr in hdrs:
         for expected in pub_data["packet"]["headers"]:
             hdr.remove(tuple(expected))
-        assert set([k for k, v in hdr]) == set([
-            "a0_publisher_id",
-            "a0_publisher_seq",
+        assert sorted([k for k, v in hdr]) == [
             "a0_time_mono",
             "a0_time_wall",
             "a0_transport_seq",
-        ])
+            "a0_writer_id",
+            "a0_writer_seq",
+        ]
 
 
 def test_rpc(sandbox):
@@ -233,48 +174,38 @@ def test_rpc(sandbox):
         ns.collected_requests.append(req.pkt.payload)
         req.reply(f"success_{len(ns.collected_requests) - 1}")
 
-    tm = a0.TopicManager({"container": "aaa"})
-    topic = tm.rpc_server_topic("bbb")
-    server = a0.RpcServer(topic, on_request, None)
+    server = a0.RpcServer("mytopic", on_request, None)
 
     endpoint = f"http://localhost:{os.environ['PORT_STR']}/api/rpc"
     rpc_data = {
-        "container": "aaa",
-        "topic": "bbb",
+        "topic": "mytopic",
         "packet": {
             "payload": "",
         },
     }
 
     # Normal request.
-    rpc_data["packet"]["payload"] = btoa("request_0")
+    rpc_data["packet"]["payload"] = "request_0"
     resp = requests.post(endpoint, data=json.dumps(rpc_data))
     assert resp.status_code == 200
-    assert set([k for k, v in resp.json()["headers"]]) == set([
+    assert sorted([k for k, v in resp.json()["headers"]]) == [
         "a0_dep",
-        "a0_publisher_id",
-        "a0_publisher_seq",
         "a0_req_id",
         "a0_rpc_type",
         "a0_time_mono",
         "a0_time_wall",
         "a0_transport_seq",
-    ])
-    assert atob(resp.json()["payload"]) == "success_0"
-
-    # Missing "container".
-    rpc_data.pop("container")
-    resp = requests.post(endpoint, data=json.dumps(rpc_data))
-    assert resp.status_code == 400
-    assert resp.text == "Request missing required field: container"
-    rpc_data["container"] = "aaa"
+        "a0_writer_id",
+        "a0_writer_seq",
+    ]
+    assert resp.json()["payload"] == "success_0"
 
     # Missing "topic".
     rpc_data.pop("topic")
     resp = requests.post(endpoint, data=json.dumps(rpc_data))
     assert resp.status_code == 400
     assert resp.text == "Request missing required field: topic"
-    rpc_data["topic"] = "bbb"
+    rpc_data["topic"] = "mytopic"
 
     # Not JSON.
     resp = requests.post(endpoint, data="not json")
@@ -286,21 +217,21 @@ def test_rpc(sandbox):
     assert resp.status_code == 400
     assert resp.text == "Request must be a json object."
 
-    # None Request Encoding.
-    rpc_data["packet"]["payload"] = "request_1"
-    rpc_data["request_encoding"] = "none"
+    # Base64 Request Encoding.
+    rpc_data["packet"]["payload"] = btoa("request_1")
+    rpc_data["request_encoding"] = "base64"
     resp = requests.post(endpoint, data=json.dumps(rpc_data))
     assert resp.status_code == 200
-    assert atob(resp.json()["payload"]) == "success_1"
+    assert resp.json()["payload"] == "success_1"
     del rpc_data["request_encoding"]
 
-    # None Response Encoding.
+    # Base64 Response Encoding.
     print("Base64 Response Encoding.", flush=True, file=sys.stderr)
-    rpc_data["packet"]["payload"] = btoa("request_2")
-    rpc_data["response_encoding"] = "none"
+    rpc_data["packet"]["payload"] = "request_2"
+    rpc_data["response_encoding"] = "base64"
     resp = requests.post(endpoint, data=json.dumps(rpc_data))
     assert resp.status_code == 200
-    assert resp.json()["payload"] == "success_2"
+    assert atob(resp.json()["payload"]) == "success_2"
 
     assert ns.collected_requests == [b"request_0", b"request_1", b"request_2"]
 
@@ -308,13 +239,11 @@ def test_rpc(sandbox):
 async def test_sub(sandbox):
     endpoint = f"ws://localhost:{os.environ['PORT_STR']}/wsapi/sub"
     sub_data = {
-        "container": "aaa",
-        "topic": "bbb",
+        "topic": "mytopic",
         "init": "OLDEST",
         "iter": "NEXT",
     }
-    tm = a0.TopicManager({"container": "aaa"})
-    p = a0.Publisher(tm.publisher_topic("bbb"))
+    p = a0.Publisher("mytopic")
 
     p.pub("payload 0")
     p.pub("payload 1")
@@ -323,13 +252,13 @@ async def test_sub(sandbox):
 
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "payload 0"
+            assert pkt["payload"] == "payload 0"
         except asyncio.TimeoutError:
             assert False
 
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "payload 1"
+            assert pkt["payload"] == "payload 1"
         except asyncio.TimeoutError:
             assert False
 
@@ -343,18 +272,18 @@ async def test_sub(sandbox):
         p.pub("payload 2")
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "payload 2"
+            assert pkt["payload"] == "payload 2"
         except asyncio.TimeoutError:
             assert False
 
-    sub_data["response_encoding"] = "none"
+    sub_data["response_encoding"] = "base64"
     sub_data["scheduler"] = "ON_ACK"
     async with websockets.connect(endpoint) as ws:
         await ws.send(json.dumps(sub_data))
 
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert pkt["payload"] == "payload 0"
+            assert atob(pkt["payload"]) == "payload 0"
         except asyncio.TimeoutError:
             assert False
 
@@ -368,7 +297,7 @@ async def test_sub(sandbox):
         await ws.send("ACK")
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert pkt["payload"] == "payload 1"
+            assert atob(pkt["payload"]) == "payload 1"
         except asyncio.TimeoutError:
             assert False
 
@@ -382,7 +311,7 @@ async def test_sub(sandbox):
         await ws.send("ACK")
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert pkt["payload"] == "payload 2"
+            assert atob(pkt["payload"]) == "payload 2"
         except asyncio.TimeoutError:
             assert False
 
@@ -390,8 +319,7 @@ async def test_sub(sandbox):
 async def test_prpc(sandbox):
     endpoint = f"ws://localhost:{os.environ['PORT_STR']}/wsapi/prpc"
     prpc_data = {
-        "container": "aaa",
-        "topic": "bbb",
+        "topic": "mytopic",
     }
 
     connect_ids = []
@@ -407,9 +335,7 @@ async def test_prpc(sandbox):
     def oncancel(id_):
         cancel_ids.append(id_)
 
-    tm = a0.TopicManager({"container": "aaa"})
-    server = a0.PrpcServer(tm.prpc_server_topic("bbb"), onconnect,
-                           oncancel)  # noqa: F841
+    server = a0.PrpcServer("mytopic", onconnect, oncancel)  # noqa: F841
 
     async with websockets.connect(endpoint) as ws:
         await ws.send(json.dumps(prpc_data))
@@ -417,11 +343,11 @@ async def test_prpc(sandbox):
         try:
             for i in range(3):
                 pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-                assert atob(pkt["payload"]) == f"payload {i}"
+                assert pkt["payload"] == f"payload {i}"
                 assert not pkt["done"]
 
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "server done"
+            assert pkt["payload"] == "server done"
             assert pkt["done"]
         except asyncio.TimeoutError:
             assert False
@@ -433,7 +359,7 @@ async def test_prpc(sandbox):
 
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "payload 0"
+            assert pkt["payload"] == "payload 0"
             assert not pkt["done"]
         except asyncio.TimeoutError:
             assert False
@@ -449,7 +375,7 @@ async def test_prpc(sandbox):
             try:
                 await ws.send("ACK")
                 pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-                assert atob(pkt["payload"]) == f"payload {i}"
+                assert pkt["payload"] == f"payload {i}"
                 assert not pkt["done"]
             except asyncio.TimeoutError:
                 assert False
@@ -457,47 +383,19 @@ async def test_prpc(sandbox):
         try:
             await ws.send("ACK")
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "server done"
+            assert pkt["payload"] == "server done"
             assert pkt["done"]
         except asyncio.TimeoutError:
             assert False
 
     assert len(cancel_ids) == 2 and connect_ids == cancel_ids
 
-
-# TODO(lshamis): Merge this with the test above once the leak is fixed.
-# The C++ wrapper for PrpcClient has a bug where data isn't cleaned up if a message
-# with done=True doesn't show up before shutdown.
-async def test_prpc_leaky(leaky_sandbox):
-    endpoint = f"ws://localhost:{os.environ['PORT_STR']}/wsapi/prpc"
-    prpc_data = {
-        "container": "aaa",
-        "topic": "bbb",
-        "scheduler": "ON_ACK",
-    }
-
-    connect_ids = []
-
-    def onconnect(conn):
-        connect_ids.append(conn.pkt.id)
-        for i in range(3):
-            conn.send(f"payload {i}", False)
-        conn.send("server done", True)
-
-    cancel_ids = []
-
-    def oncancel(id_):
-        cancel_ids.append(id_)
-
-    tm = a0.TopicManager({"container": "aaa"})
-    server = a0.PrpcServer(tm.prpc_server_topic("bbb"), onconnect, oncancel)
-
     async with websockets.connect(endpoint) as ws:
         await ws.send(json.dumps(prpc_data))
 
         try:
             pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
-            assert atob(pkt["payload"]) == "payload 0"
+            assert pkt["payload"] == "payload 0"
             assert not pkt["done"]
         except asyncio.TimeoutError:
             assert False
@@ -509,6 +407,4 @@ async def test_prpc_leaky(leaky_sandbox):
             timedout = True
         assert timedout
 
-        assert len(cancel_ids) == 0
-
-    assert len(cancel_ids) == 1 and connect_ids == cancel_ids
+    assert len(cancel_ids) == 3 and connect_ids == cancel_ids

@@ -6,12 +6,27 @@
 
 namespace a0::api {
 
+namespace none {
+
+A0_STATIC_INLINE
+std::string encode(std::string_view input) {
+  return std::string(input);
+}
+
+A0_STATIC_INLINE
+std::string decode(std::string_view input) {
+  return std::string(input);
+}
+
+}  // namespace none
+
 namespace base64 {
 
 constexpr std::string_view kCharSet =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-inline static std::string encode(std::string_view input) {
+A0_STATIC_INLINE
+std::string encode(std::string_view input) {
   std::string out;
 
   int a = 0, b = -6;
@@ -32,7 +47,8 @@ inline static std::string encode(std::string_view input) {
   return out;
 }
 
-inline static std::string decode(std::string_view input) {
+A0_STATIC_INLINE
+std::string decode(std::string_view input) {
   static const std::array<int, 256> table = []() {
     std::array<int, 256> table_builder;
     for (auto& elem : table_builder) {
@@ -63,29 +79,25 @@ inline static std::string decode(std::string_view input) {
 
 }  // namespace base64
 
-inline static const std::
-    unordered_map<std::string, std::function<std::string(std::string_view)>>&
-    Encoders() {
-  static const std::unordered_map<std::string,
-                                  std::function<std::string(std::string_view)>>
+A0_STATIC_INLINE
+const std::unordered_map<std::string, std::function<std::string(std::string_view)>>& Encoders() {
+  static const std::unordered_map<std::string, std::function<std::string(std::string_view)>>
       // Default to base64 for backwards compatability.
       enc = {
-          {"", &base64::encode},
-          {"none", [](std::string_view str) { return std::string(str); }},
+          {"", &none::encode},
+          {"none", &none::encode},
           {"base64", &base64::encode},
       };
   return enc;
 }
 
-inline static const std::
-    unordered_map<std::string, std::function<std::string(std::string_view)>>&
-    Decoders() {
-  static const std::unordered_map<std::string,
-                                  std::function<std::string(std::string_view)>>
+A0_STATIC_INLINE
+const std::unordered_map<std::string, std::function<std::string(std::string_view)>>& Decoders() {
+  static const std::unordered_map<std::string, std::function<std::string(std::string_view)>>
       // Default to base64 for backwards compatability.
       dec = {
-          {"", &base64::decode},
-          {"none", [](std::string_view str) { return std::string(str); }},
+          {"", &none::decode},
+          {"none", &none::decode},
           {"base64", &base64::decode},
       };
   return dec;

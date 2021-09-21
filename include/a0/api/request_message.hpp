@@ -14,7 +14,6 @@ struct RequestMessage {
   // Original client message.
   nlohmann::json raw_msg;
   // Commonly requested fields.
-  std::string container;
   std::string topic;
   a0::Packet pkt;
   std::function<std::string(std::string_view)> response_encoder;
@@ -128,13 +127,16 @@ static inline RequestMessage ParseRequestMessage(std::string_view str) {
   }
 
   // Check for common fields.
-  msg.maybe_get_to("container", msg.container);
   msg.maybe_get_to("topic", msg.topic);
 
   // Extract packet fields.
-  auto headers =
+  auto headers_list =
       msg.maybe_get<std::vector<std::pair<std::string, std::string>>>(
           nlohmann::json::json_pointer("/packet/headers"));
+  std::unordered_multimap<std::string, std::string> headers;
+  for (const auto& header : headers_list) {
+    headers.insert({std::move(header.first), std::move(header.second)});
+  }
   auto payload = msg.maybe_get<std::string>(
       nlohmann::json::json_pointer("/packet/payload"));
 

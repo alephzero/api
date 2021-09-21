@@ -11,7 +11,6 @@ namespace a0::api {
 // ws = new WebSocket(`ws://${api_addr}/wsapi/prpc`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
-//         container: "...",             // required
 //         topic: "...",                 // required
 //         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
 //         request_encoding: "base64",   // optional, one of "none", "base64"
@@ -25,7 +24,7 @@ namespace a0::api {
 struct WSPrpc {
   struct Data {
     std::unique_ptr<a0::PrpcClient> client;
-    a0_subscriber_iter_t iter{A0_ITER_NEXT};
+    a0_reader_iter_t iter{A0_ITER_NEXT};
     scheduler_t scheduler{scheduler_t::IMMEDIATE};
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
     std::string connection_id;
@@ -58,7 +57,7 @@ struct WSPrpc {
               auto* data = (WSPrpc::Data*)ws->getUserData();
 
               // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
-              if (data->client && data->scheduler == scheduler_t::ON_ACK && msg == "ACK") {
+              if (data->client && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
                 (*data->scheduler_event_count)++;
                 global()->cv.notify_all();
                 return;
@@ -76,7 +75,6 @@ struct WSPrpc {
               RequestMessage req_msg;
               try {
                 req_msg = ParseRequestMessage(msg);
-                req_msg.require("container");
                 req_msg.require("topic");
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
@@ -99,17 +97,8 @@ struct WSPrpc {
                 return;
               }
 
-              // Find the absolute topic.
-              a0::TopicManager tm;
-              tm.container = "unused";
-              tm.prpc_client_aliases["target"] = {
-                  .container = req_msg.container,
-                  .topic = req_msg.topic,
-              };
-              auto topic = tm.prpc_client_topic("target");
-
               // Create the prpc.
-              data->client = std::make_unique<a0::PrpcClient>(topic);
+              data->client = std::make_unique<a0::PrpcClient>(req_msg.topic);
               data->connection_id = std::string(req_msg.pkt.id());
 
               // Note: we don't want to use the "ws" or "data" directly in the prpc thread.
@@ -117,7 +106,7 @@ struct WSPrpc {
                                                              iter = data->iter,
                                                              scheduler = data->scheduler,
                                                              curr_cnt = data->scheduler_event_count,
-                                                             newest_pkt = data->newest_pkt](const a0::PacketView& pkt_view, bool done) {
+                                                             newest_pkt = data->newest_pkt](a0::Packet pkt, bool done) {
                 if (!global()->running) {
                   return;
                 }
@@ -129,8 +118,8 @@ struct WSPrpc {
 
                 // Save views and perform work we don't want to do on the
                 // event loop.
-                auto headers = pkt_view.headers();
-                auto payload = req_msg.response_encoder(pkt_view.payload());
+                auto headers = pkt.headers();
+                auto payload = req_msg.response_encoder(pkt.payload());
                 if (iter == A0_ITER_NEWEST) {
                   std::unique_lock<std::mutex> lk{newest_pkt->mtx};
                   newest_pkt->pkt = a0::Packet(headers, payload);
@@ -154,7 +143,7 @@ struct WSPrpc {
 
                   if (data->iter == A0_ITER_NEXT) {
                     ws->send(nlohmann::json({
-                                                {"headers", headers},
+                                                {"headers", strutil::flatten(headers)},
                                                 {"payload", payload},
                                                 {"done", done},
                                             })
@@ -166,7 +155,7 @@ struct WSPrpc {
                       return;
                     }
                     ws->send(nlohmann::json({
-                                                {"headers", data->newest_pkt->pkt->headers()},
+                                                {"headers", strutil::flatten(data->newest_pkt->pkt->headers())},
                                                 {"payload", data->newest_pkt->pkt->payload()},
                                                 {"done", data->newest_pkt->done},
                                             })

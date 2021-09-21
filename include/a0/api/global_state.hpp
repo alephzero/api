@@ -12,7 +12,6 @@ struct GlobalState {
   // The following should only be used within the event_loop.
   us_listen_socket_t* listen_socket;
   std::set<uWS::WebSocket<false, true>*> active_ws;
-  std::unique_ptr<a0::Heartbeat> heartbeat;
   // The following should only be used to lock alephzero threads.
   std::mutex mu;
   std::condition_variable cv;

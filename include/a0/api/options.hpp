@@ -21,8 +21,8 @@ const std::unordered_map<std::string, scheduler_t>& scheduler_map() {
   return val;
 }
 
-const std::unordered_map<std::string, a0_subscriber_init_t>& init_map() {
-  static std::unordered_map<std::string, a0_subscriber_init_t> val = {
+const std::unordered_map<std::string, a0_reader_init_t>& init_map() {
+  static std::unordered_map<std::string, a0_reader_init_t> val = {
       {"OLDEST", A0_INIT_OLDEST},
       {"MOST_RECENT", A0_INIT_MOST_RECENT},
       {"AWAIT_NEW", A0_INIT_AWAIT_NEW},
@@ -30,8 +30,8 @@ const std::unordered_map<std::string, a0_subscriber_init_t>& init_map() {
   return val;
 }
 
-const std::unordered_map<std::string, a0_subscriber_iter_t>& iter_map() {
-  static std::unordered_map<std::string, a0_subscriber_iter_t> val = {
+const std::unordered_map<std::string, a0_reader_iter_t>& iter_map() {
+  static std::unordered_map<std::string, a0_reader_iter_t> val = {
       {"NEXT", A0_ITER_NEXT},
       {"NEWEST", A0_ITER_NEWEST},
   };
