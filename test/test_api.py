@@ -21,6 +21,7 @@ pytestmark = pytest.mark.asyncio
 
 
 class RunApi:
+
     class State(enum.Enum):
         DEAD = 0
         CREATED = 1
@@ -41,17 +42,20 @@ class RunApi:
                 ns.state = RunApi.State.STARTED
                 ns.state_cv.notify_all()
 
-        sub = a0.Subscriber("api_ready", a0.INIT_AWAIT_NEW, a0.ITER_NEXT, check_ready)
+        sub = a0.Subscriber("api_ready", a0.INIT_AWAIT_NEW, a0.ITER_NEXT,
+                            check_ready)
 
         self.api_proc = subprocess.Popen(
-            ["valgrind", "--leak-check=full", "--error-exitcode=125", "/api.bin"],
+            [
+                "valgrind", "--leak-check=full", "--error-exitcode=125",
+                "/api.bin"
+            ],
             env=os.environ.copy(),
         )
 
         with ns.state_cv:
             assert ns.state_cv.wait_for(
-                lambda: ns.state == RunApi.State.STARTED, timeout=10
-            )
+                lambda: ns.state == RunApi.State.STARTED, timeout=10)
 
     def shutdown(self):
         assert self.api_proc

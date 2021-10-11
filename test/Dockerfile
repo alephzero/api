@@ -13,7 +13,7 @@ RUN python3 -m pip install -U \
 
 RUN mkdir /alephzero &&                                      \
     cd /alephzero &&                                         \
-    git clone -b dev --recurse-submodules https://github.com/alephzero/py.git &&         \
+    git clone --recurse-submodules https://github.com/alephzero/py.git &&         \
     cd /alephzero/py &&                                      \
     python3 -m pip install .
 
