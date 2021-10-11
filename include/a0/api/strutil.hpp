@@ -44,14 +44,28 @@ struct strutil {
     return parts;
   }
 
+  static bool endswith(std::string_view str, std::string_view suffix) {
+    return str.size() >= suffix.size() &&
+           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+  }
+
   static void log(std::string_view str) {
-    timespec now;
+    a0_time_wall_t now;
     a0_time_wall_now(&now);
 
     char now_str[36];
     a0_time_wall_str(now, now_str);
 
     fprintf(stderr, "%s] %.*s\n", now_str, (int)str.size(), str.data());
+  }
+
+  static std::vector<std::pair<std::string, std::string>> flatten(
+      std::unordered_multimap<std::string, std::string> mm) {
+    std::vector<std::pair<std::string, std::string>> result;
+    for (auto&& [k, v] : mm) {
+      result.push_back({std::move(k), std::move(v)});
+    }
+    return result;
   }
 };
 

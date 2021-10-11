@@ -12,7 +12,6 @@ namespace a0::api {
 // fetch(`http://${api_addr}/api/pub`, {
 //     method: "POST",
 //     body: JSON.stringify({
-//         container: "...",                 // required
 //         topic: "...",                     // required
 //         packet: {
 //             headers: [                    // optional
@@ -40,7 +39,6 @@ static inline void rest_pub(uWS::HttpResponse<false>* res,
       req_msg = ParseRequestMessage(ss.str());
 
       // Check required fields.
-      req_msg.require("container");
       req_msg.require("topic");
       req_msg.require(nlohmann::json::json_pointer("/packet/payload"));
     } catch (std::exception& e) {
@@ -48,13 +46,8 @@ static inline void rest_pub(uWS::HttpResponse<false>* res,
       return;
     }
 
-    // Find the absolute topic.
-    a0::TopicManager tm;
-    tm.container = req_msg.container;
-    auto topic = tm.publisher_topic(req_msg.topic);
-
     // Perform requested action.
-    a0::Publisher p(topic);
+    a0::Publisher p(req_msg.topic);
     p.pub(std::move(req_msg.pkt));
 
     rest_respond(res, "200", {}, "success");

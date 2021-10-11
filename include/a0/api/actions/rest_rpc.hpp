@@ -13,7 +13,6 @@ namespace a0::api {
 // fetch(`http://${api_addr}/api/rpc`, {
 //     method: "POST",
 //     body: JSON.stringify({
-//         container: "...",                 // required
 //         topic: "...",                     // required
 //         packet: {
 //             headers: [                    // optional
@@ -43,7 +42,6 @@ static inline void rest_rpc(uWS::HttpResponse<false>* res,
       req_msg = ParseRequestMessage(ss.str());
 
       // Check required fields.
-      req_msg.require("container");
       req_msg.require("topic");
       req_msg.require(nlohmann::json::json_pointer("/packet/payload"));
     } catch (std::exception& e) {
@@ -51,24 +49,16 @@ static inline void rest_rpc(uWS::HttpResponse<false>* res,
       return;
     }
 
-    // Find the absolute topic.
-    a0::TopicManager tm;
-    tm.container = "unused";
-    tm.rpc_client_aliases["target"] = {
-        .container = req_msg.container,
-        .topic = req_msg.topic,
-    };
-
     // Perform requested action.
     // TODO(lshamis): This hurts! There must be a better way to manage the
     // memory here.
-    auto* rpc_client = new a0::RpcClient(tm.rpc_client_topic("target"));
+    auto* rpc_client = new a0::RpcClient(req_msg.topic);
 
-    auto callback = [res, rpc_client, encoder = req_msg.response_encoder](a0::PacketView pkt_view) {
-      global()->event_loop->defer([res, rpc_client, hdrs = pkt_view.headers(), payload = encoder(pkt_view.payload())]() {
+    auto callback = [res, rpc_client, req_msg](a0::Packet pkt) {
+      global()->event_loop->defer([res, rpc_client, pkt, req_msg]() {
         nlohmann::json out = {
-            {"headers", hdrs},
-            {"payload", payload},
+            {"headers", strutil::flatten(pkt.headers())},
+            {"payload", req_msg.response_encoder(pkt.payload())},
         };
         rest_respond(res, "200", {}, out.dump());
         delete rpc_client;

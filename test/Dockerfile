@@ -1,16 +1,21 @@
 FROM ubuntu:20.04
 
 RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
-    python3-dev python3-pip valgrind
+    git python3-dev python3-pip valgrind
 RUN python3 -m pip install -U \
-    alephzero \
     pip \
     wheel \
     setuptools \
     pytest \
     pytest-asyncio \
     requests \
-    websockets
+    websockets==9.1
+
+RUN mkdir /alephzero &&                                      \
+    cd /alephzero &&                                         \
+    git clone --recurse-submodules https://github.com/alephzero/py.git &&         \
+    cd /alephzero/py &&                                      \
+    python3 -m pip install .
 
 COPY --from=alephzero_api /api.bin /
 COPY ./test /test

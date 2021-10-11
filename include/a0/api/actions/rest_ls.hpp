@@ -18,36 +18,17 @@ static inline void rest_ls(uWS::HttpResponse<false>* res,
                            uWS::HttpRequest* req) {
   auto root = env("A0_ROOT", "/dev/shm");
 
-  nlohmann::json out;
-  // Scan the root directory for files starting with "a0_".
-  // Files are expected to have the format:
-  // "a0_{protocol}__{container}__{topic}". {container} and {topic} are
-  // optional.
-  for (auto&& entry : std::filesystem::directory_iterator(root)) {
-    std::string filename = entry.path().filename();
-    if (filename.rfind("a0_", 0) != 0) {
-      continue;
+  std::vector<std::string> out;
+  // Scan the root directory recursively for files ending with ".a0".
+  for (auto&& entry : std::filesystem::recursive_directory_iterator(root)) {
+    auto path = std::string(std::filesystem::relative(entry.path(), root));
+    if (strutil::endswith(path, ".a0")) {
+      out.push_back(path);
     }
-
-    auto parts = strutil::split(filename, "__");
-    nlohmann::json jentry = {
-        {"filename", filename},
-        {"protocol", parts[0].substr(3)},
-    };
-    if (parts.size() > 1) {
-      jentry["container"] = parts[1];
-    }
-    if (parts.size() > 2) {
-      jentry["topic"] = parts[2];
-    }
-
-    out.push_back(std::move(jentry));
   }
-  std::sort(out.begin(), out.end(), [](const auto& lhs, const auto& rhs) {
-    return lhs.at("filename") < rhs.at("filename");
-  });
+  std::sort(out.begin(), out.end());
 
-  rest_respond(res, "200", {}, out.dump());
+  rest_respond(res, "200", {}, nlohmann::json(out).dump());
 }
 
 }  // namespace a0::api
