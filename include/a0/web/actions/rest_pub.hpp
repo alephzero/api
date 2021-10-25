@@ -4,13 +4,12 @@
 
 #include <sstream>
 
-#include "a0/api/global_state.hpp"
-#include "a0/api/request_message.hpp"
-#include "a0/api/rest_helpers.hpp"
+#include "a0/web/request_message.hpp"
+#include "a0/web/rest_helpers.hpp"
 
 namespace a0::api {
 
-// fetch(`http://${api_addr}/api/rpc`, {
+// fetch(`http://${api_addr}/api/pub`, {
 //     method: "POST",
 //     body: JSON.stringify({
 //         topic: "...",                     // required
@@ -22,15 +21,13 @@ namespace a0::api {
 //             payload: window.btoa("..."),  // required
 //         },
 //         request_encoding: "base64"        // optional, one of "none", "base64"
-//         response_encoding: "base64"       // optional, one of "none", "base64"
 //     })
 // })
 // .then((r) => { return r.text() })
-// .then((msg) => { console.log(msg) })
-static inline void rest_rpc(uWS::HttpResponse<false>* res,
+// .then((msg) => { console.assert(msg == "success", msg) })
+static inline void rest_pub(uWS::HttpResponse<false>* res,
                             uWS::HttpRequest* req) {
-  res->onData([res, ss = std::stringstream()](std::string_view chunk,
-                                              bool is_end) mutable {
+  res->onData([res, ss = std::stringstream()](std::string_view chunk, bool is_end) mutable {
     ss << chunk;
     if (!is_end) {
       return;
@@ -50,22 +47,10 @@ static inline void rest_rpc(uWS::HttpResponse<false>* res,
     }
 
     // Perform requested action.
-    // TODO(lshamis): This hurts! There must be a better way to manage the
-    // memory here.
-    auto* rpc_client = new a0::RpcClient(req_msg.topic);
+    a0::Publisher p(req_msg.topic);
+    p.pub(std::move(req_msg.pkt));
 
-    auto callback = [res, rpc_client, req_msg](a0::Packet pkt) {
-      global()->event_loop->defer([res, rpc_client, pkt, req_msg]() {
-        nlohmann::json out = {
-            {"headers", strutil::flatten(pkt.headers())},
-            {"payload", req_msg.response_encoder(pkt.payload())},
-        };
-        rest_respond(res, "200", {}, out.dump());
-        delete rpc_client;
-      });
-    };
-
-    rpc_client->send(std::move(req_msg.pkt), callback);
+    rest_respond(res, "200", {}, "success");
   });
 
   res->onAborted([]() {});

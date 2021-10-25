@@ -9,7 +9,7 @@ RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
 
 RUN mkdir -p /alephzero && \
     cd /alephzero && \
-    git clone -b v0.3 --recurse-submodules https://github.com/alephzero/alephzero.git && \
+    git clone --recurse-submodules https://github.com/alephzero/alephzero.git && \
     cd /alephzero/alephzero && \
     make install -j
 
@@ -24,6 +24,10 @@ RUN mkdir -p /uNetworking && \
 RUN mkdir -p /nlohmann && \
     cd /nlohmann && \
     wget https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
+
+RUN mkdir -p /chriskohlhoff && \
+    cd /chriskohlhoff && \
+    git clone --depth 1 --branch asio-1-20-0 https://github.com/chriskohlhoff/asio.git
 
 WORKDIR /
 COPY include /include
@@ -41,6 +45,8 @@ RUN g++ \
     -I/include \
     -I/uNetworking/uSockets/src \
     -I/uNetworking/uWebSockets/src \
+    -DASIO_STANDALONE=1 \
+    -I/chriskohlhoff/asio/asio/include \
     /api.cpp \
     -L/lib \
     -L/uNetworking/uSockets \
