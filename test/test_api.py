@@ -122,7 +122,7 @@ def test_pub(sandbox):
     assert resp.status_code == 200
     assert resp.text == "success"
 
-    # None request_encoding.
+    # Base64 request_encoding.
     pub_data["request_encoding"] = "base64"
     pub_data["packet"]["payload"] = btoa("Goodbye, World!")
     resp = requests.post(endpoint, data=json.dumps(pub_data))
@@ -168,6 +168,82 @@ def test_pub(sandbox):
             "a0_writer_id",
             "a0_writer_seq",
         ]
+
+
+def test_write(sandbox):
+    endpoint = f"http://localhost:{os.environ['PORT_STR']}/api/write"
+    pub_data = {
+        "path": "mypath",
+        "packet": {
+            "headers": [
+                ["xyz", "123"],
+                ["zzz", "www"],
+            ],
+            "payload": "Hello, World!",
+        },
+    }
+
+    # Normal publish.
+    resp = requests.post(endpoint, data=json.dumps(pub_data))
+    assert resp.status_code == 200
+    assert resp.text == "success"
+
+    # Base64 request_encoding.
+    pub_data["request_encoding"] = "base64"
+    pub_data["packet"]["payload"] = btoa("Goodbye, World!")
+    resp = requests.post(endpoint, data=json.dumps(pub_data))
+    assert resp.status_code == 200
+    assert resp.text == "success"
+    pub_data["packet"]["payload"] = "Hello, World!"
+    pub_data.pop("request_encoding")
+
+    # Missing "path".
+    pub_data.pop("path")
+    resp = requests.post(endpoint, data=json.dumps(pub_data))
+    assert resp.status_code == 400
+    assert resp.text == "Request missing required field: path"
+    pub_data["path"] = "mypath"
+
+    # Not JSON.
+    resp = requests.post(endpoint, data="not json")
+    assert resp.status_code == 400
+    assert resp.text == "Request must be json."
+
+    # Not JSON object.
+    resp = requests.post(endpoint, data=json.dumps(["not object"]))
+    assert resp.status_code == 400
+    assert resp.text == "Request must be a json object."
+
+    # Standard headers.
+    pub_data["standard_headers"] = True
+    resp = requests.post(endpoint, data=json.dumps(pub_data))
+    assert resp.status_code == 200
+    assert resp.text == "success"
+    pub_data.pop("standard_headers")
+
+    reader = a0.ReaderSync(a0.File("mypath"), a0.INIT_OLDEST, a0.ITER_NEXT)
+    hdrs = []
+    msgs = []
+    while reader.has_next():
+        pkt = reader.next()
+        hdrs.append(list(pkt.headers))  # Inspect copies of headers.
+        msgs.append(pkt.payload)
+    assert len(hdrs) == 3
+    assert len(msgs) == 3
+    assert msgs == [b"Hello, World!", b"Goodbye, World!", b"Hello, World!"]
+
+    for hdr in hdrs[:-1]:
+        assert sorted([k for k, v in hdr]) == ["xyz", "zzz"]
+
+    assert sorted([k for k, v in hdrs[-1]]) == [
+        "a0_time_mono",
+        "a0_time_wall",
+        "a0_transport_seq",
+        "a0_writer_id",
+        "a0_writer_seq",
+        "xyz",
+        "zzz",
+    ]
 
 
 def test_rpc(sandbox):
@@ -238,6 +314,86 @@ def test_rpc(sandbox):
     assert atob(resp.json()["payload"]) == "success_2"
 
     assert ns.collected_requests == [b"request_0", b"request_1", b"request_2"]
+
+
+async def test_read(sandbox):
+    endpoint = f"ws://localhost:{os.environ['PORT_STR']}/wsapi/read"
+    sub_data = {
+        "path": "myread",
+        "init": "OLDEST",
+        "iter": "NEXT",
+    }
+    w = a0.Writer(a0.File("myread"))
+
+    w.write("payload 0")
+    w.write("payload 1")
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 0"
+        except asyncio.TimeoutError:
+            assert False
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 1"
+        except asyncio.TimeoutError:
+            assert False
+
+        timed_out = False
+        try:
+            await asyncio.wait_for(ws.recv(), timeout=3.0)
+        except asyncio.TimeoutError:
+            timed_out = True
+        assert timed_out
+
+        w.write("payload 2")
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 2"
+        except asyncio.TimeoutError:
+            assert False
+
+    sub_data["response_encoding"] = "base64"
+    sub_data["scheduler"] = "ON_ACK"
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert atob(pkt["payload"]) == "payload 0"
+        except asyncio.TimeoutError:
+            assert False
+
+        timed_out = False
+        try:
+            await asyncio.wait_for(ws.recv(), timeout=1.0)
+        except asyncio.TimeoutError:
+            timed_out = True
+        assert timed_out
+
+        await ws.send("ACK")
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert atob(pkt["payload"]) == "payload 1"
+        except asyncio.TimeoutError:
+            assert False
+
+        timed_out = False
+        try:
+            await asyncio.wait_for(ws.recv(), timeout=1.0)
+        except asyncio.TimeoutError:
+            timed_out = True
+        assert timed_out
+
+        await ws.send("ACK")
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert atob(pkt["payload"]) == "payload 2"
+        except asyncio.TimeoutError:
+            assert False
 
 
 async def test_sub(sandbox):

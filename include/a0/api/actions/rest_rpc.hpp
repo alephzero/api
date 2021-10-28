@@ -19,10 +19,10 @@ namespace a0::api {
 //                 ["key", "val"],
 //                 ...
 //             ],
-//             payload: window.btoa("..."),  // required
+//             payload: "...",               // required
 //         },
-//         request_encoding: "base64"        // optional, one of "none", "base64"
-//         response_encoding: "base64"       // optional, one of "none", "base64"
+//         request_encoding: "none"          // optional, one of "none", "base64"
+//         response_encoding: "none"         // optional, one of "none", "base64"
 //     })
 // })
 // .then((r) => { return r.text() })

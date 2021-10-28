@@ -14,6 +14,7 @@ struct RequestMessage {
   // Original client message.
   nlohmann::json raw_msg;
   // Commonly requested fields.
+  std::string path;
   std::string topic;
   a0::Packet pkt;
   std::function<std::string(std::string_view)> response_encoder;
@@ -127,6 +128,7 @@ static inline RequestMessage ParseRequestMessage(std::string_view str) {
   }
 
   // Check for common fields.
+  msg.maybe_get_to("path", msg.path);
   msg.maybe_get_to("topic", msg.topic);
 
   // Extract packet fields.

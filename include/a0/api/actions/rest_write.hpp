@@ -9,10 +9,11 @@
 
 namespace a0::api {
 
-// fetch(`http://${api_addr}/api/pub`, {
+// fetch(`http://${api_addr}/api/write`, {
 //     method: "POST",
 //     body: JSON.stringify({
-//         topic: "...",                     // required
+//         path: "...",                      // required
+//         standard_headers: false,          // optional
 //         packet: {
 //             headers: [                    // optional
 //                 ["key", "val"],
@@ -25,8 +26,8 @@ namespace a0::api {
 // })
 // .then((r) => { return r.text() })
 // .then((msg) => { console.assert(msg == "success", msg) })
-static inline void rest_pub(uWS::HttpResponse<false>* res,
-                            uWS::HttpRequest* req) {
+static inline void rest_write(uWS::HttpResponse<false>* res,
+                              uWS::HttpRequest* req) {
   res->onData([res, ss = std::stringstream()](std::string_view chunk, bool is_end) mutable {
     ss << chunk;
     if (!is_end) {
@@ -34,21 +35,26 @@ static inline void rest_pub(uWS::HttpResponse<false>* res,
     }
 
     RequestMessage req_msg;
+    bool standard_headers = false;
     try {
       // Parse input.
       req_msg = ParseRequestMessage(ss.str());
 
       // Check required fields.
-      req_msg.require("topic");
+      req_msg.require("path");
       req_msg.require(nlohmann::json::json_pointer("/packet/payload"));
+      req_msg.maybe_get_to("standard_headers", standard_headers);
     } catch (std::exception& e) {
       rest_respond(res, "400", {}, e.what());
       return;
     }
 
     // Perform requested action.
-    Publisher p(req_msg.topic);
-    p.pub(std::move(req_msg.pkt));
+    Writer w(File(req_msg.path));
+    if (standard_headers) {
+      w.push(add_standard_headers());
+    }
+    w.write(std::move(req_msg.pkt));
 
     rest_respond(res, "200", {}, "success");
   });

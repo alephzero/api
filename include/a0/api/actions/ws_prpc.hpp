@@ -13,8 +13,8 @@ namespace a0::api {
 //     ws.send(JSON.stringify({
 //         topic: "...",                 // required
 //         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
-//         request_encoding: "base64",   // optional, one of "none", "base64"
-//         response_encoding: "base64",  // optional, one of "none", "base64"
+//         request_encoding: "none",     // optional, one of "none", "base64"
+//         response_encoding: "none",    // optional, one of "none", "base64"
 //         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
 // }
@@ -23,15 +23,17 @@ namespace a0::api {
 // }
 struct WSPrpc {
   struct Data {
-    std::unique_ptr<a0::PrpcClient> client;
-    a0_reader_iter_t iter{A0_ITER_NEXT};
+    bool init{false};
     scheduler_t scheduler{scheduler_t::IMMEDIATE};
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
+
+    std::unique_ptr<PrpcClient> client;
+    a0_reader_iter_t iter{A0_ITER_NEXT};
     std::string connection_id;
 
     // If iter is A0_ITER_NEWEST.
     struct NewestPkt {
-      std::optional<a0::Packet> pkt;
+      std::optional<Packet> pkt;
       bool done;
       std::mutex mtx;
     };
@@ -57,19 +59,18 @@ struct WSPrpc {
               auto* data = (WSPrpc::Data*)ws->getUserData();
 
               // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
-              if (data->client && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
+              if (data->init && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
                 (*data->scheduler_event_count)++;
                 global()->cv.notify_all();
                 return;
               }
 
               // Check the handshake hasn't already happend.
-              if (data->client) {
-                ws->end(4000,
-                        "Rpc Client has already been created. Only one allowed "
-                        "per websocket.");
+              if (data->init) {
+                ws->end(4000, "Handshake only allowed once per websocket.");
                 return;
               }
+              data->init = true;
 
               // Parse the request, including common fields.
               RequestMessage req_msg;
@@ -98,7 +99,7 @@ struct WSPrpc {
               }
 
               // Create the prpc.
-              data->client = std::make_unique<a0::PrpcClient>(req_msg.topic);
+              data->client = std::make_unique<PrpcClient>(req_msg.topic);
               data->connection_id = std::string(req_msg.pkt.id());
 
               // Note: we don't want to use the "ws" or "data" directly in the prpc thread.
@@ -106,7 +107,7 @@ struct WSPrpc {
                                                              iter = data->iter,
                                                              scheduler = data->scheduler,
                                                              curr_cnt = data->scheduler_event_count,
-                                                             newest_pkt = data->newest_pkt](a0::Packet pkt, bool done) {
+                                                             newest_pkt = data->newest_pkt](Packet pkt, bool done) {
                 if (!global()->running) {
                   return;
                 }
@@ -122,7 +123,7 @@ struct WSPrpc {
                 auto payload = req_msg.response_encoder(pkt.payload());
                 if (iter == A0_ITER_NEWEST) {
                   std::unique_lock<std::mutex> lk{newest_pkt->mtx};
-                  newest_pkt->pkt = a0::Packet(headers, payload);
+                  newest_pkt->pkt = Packet(headers, payload);
                   newest_pkt->done = done;
                 }
 
