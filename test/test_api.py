@@ -88,7 +88,7 @@ def test_ls(sandbox):
 
     assert resp.status_code == 200
     assert resp.headers["Access-Control-Allow-Origin"] == "*"
-    assert resp.json() == ["alephzero/api_ready.pubsub.a0"]
+    assert resp.json() == ["api_ready.pubsub.a0"]
 
     a0.File("aaa/bbb.pubsub.a0")
     a0.File("aaa/ccc.pubsub.a0")
@@ -99,7 +99,7 @@ def test_ls(sandbox):
     assert resp.json() == [
         "aaa/bbb.pubsub.a0",
         "aaa/ccc.pubsub.a0",
-        "alephzero/api_ready.pubsub.a0",
+        "api_ready.pubsub.a0",
         "bbb/ddd.rpc.a0",
     ]
 
