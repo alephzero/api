@@ -72,9 +72,9 @@ struct WSLog {
               }
 
               // Get the required 'level' option.
-              LogLevel level;
+              LogLevel level = LogLevel::INFO;
               try {
-                req_msg.require_option_to("level", level_map(), level);
+                req_msg.maybe_option_to("level", level_map(), level);
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
                 return;

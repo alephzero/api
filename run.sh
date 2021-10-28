@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-docker build -t alephzero_api .
+docker build -t alephzero/api .
 
 # TODO(lshamis): Take ipc container as arg.
 
@@ -11,4 +11,4 @@ docker run \
     --ipc=host \
     --pid=host \
     -p 24880:24880 \
-    alephzero_api
+    alephzero/api
