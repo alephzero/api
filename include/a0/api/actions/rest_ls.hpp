@@ -16,12 +16,10 @@ namespace a0::api {
 // .then((msg) => { console.log(msg) })
 static inline void rest_ls(uWS::HttpResponse<false>* res,
                            uWS::HttpRequest* req) {
-  auto root = env("A0_ROOT", "/dev/shm");
-
   std::vector<std::string> out;
   // Scan the root directory recursively for files ending with ".a0".
-  for (auto&& entry : std::filesystem::recursive_directory_iterator(root)) {
-    auto path = std::string(std::filesystem::relative(entry.path(), root));
+  for (auto&& entry : std::filesystem::recursive_directory_iterator(env::root())) {
+    auto path = std::string(std::filesystem::relative(entry.path(), env::root()));
     if (strutil::endswith(path, ".a0")) {
       out.push_back(path);
     }

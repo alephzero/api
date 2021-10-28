@@ -9,7 +9,7 @@ RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y \
 
 RUN mkdir -p /alephzero && \
     cd /alephzero && \
-    git clone -b v0.3 --recurse-submodules https://github.com/alephzero/alephzero.git && \
+    git clone --depth 1 https://github.com/alephzero/alephzero.git && \
     cd /alephzero/alephzero && \
     make install -j
 
