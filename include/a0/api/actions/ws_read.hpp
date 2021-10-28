@@ -8,10 +8,10 @@
 
 namespace a0::api {
 
-// ws = new WebSocket(`ws://${api_addr}/wsapi/sub`)
+// ws = new WebSocket(`ws://${api_addr}/wsapi/read`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
-//         topic: "...",                 // required
+//         path: "...",                  // required
 //         init: "...",                  // required, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
 //         iter: "...",                  // required, one of "NEXT", "NEWEST"
 //         response_encoding: "none",    // optional, one of "none", "base64"
@@ -21,13 +21,13 @@ namespace a0::api {
 // ws.onmessage = (evt) => {
 //     ... evt.data ...
 // }
-struct WSSub {
+struct WSRead {
   struct Data {
     bool init{false};
     scheduler_t scheduler{scheduler_t::IMMEDIATE};
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
 
-    std::unique_ptr<Subscriber> sub;
+    std::unique_ptr<Reader> reader;
   };
 
   static uWS::App::WebSocketBehavior behavior() {
@@ -46,7 +46,7 @@ struct WSSub {
                 return;
               }
 
-              auto* data = (WSSub::Data*)ws->getUserData();
+              auto* data = (WSRead::Data*)ws->getUserData();
 
               // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
               if (data->init && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
@@ -66,7 +66,7 @@ struct WSSub {
               RequestMessage req_msg;
               try {
                 req_msg = ParseRequestMessage(msg);
-                req_msg.require("topic");
+                req_msg.require("path");
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
                 return;
@@ -98,10 +98,10 @@ struct WSSub {
                 return;
               }
 
-              // Create the subscriber.
-              // Note: we don't want to use the "ws" or "data" directly in the subscriber thread.
-              data->sub = std::make_unique<Subscriber>(
-                  req_msg.topic, init, iter,
+              // Create the reader.
+              // Note: we don't want to use the "ws" or "data" directly in the reader thread.
+              data->reader = std::make_unique<Reader>(
+                  File(req_msg.path), init, iter,
                   [ws, req_msg,
                    scheduler = data->scheduler,
                    curr_cnt = data->scheduler_event_count](Packet pkt) {
@@ -110,7 +110,7 @@ struct WSSub {
                     }
 
                     // Save the event count before sending the message.
-                    // Depending on the scheduler, the subscriber might block until the event counter increments.
+                    // Depending on the scheduler, the reader might block until the event counter increments.
                     int64_t pre_send_cnt = *curr_cnt;
 
                     // Save views and perform work we don't want to do on the
@@ -124,7 +124,7 @@ struct WSSub {
                         [ws,
                          headers = std::move(headers),
                          payload = std::move(payload)]() {
-                          // Make sure the ws hasn't closed between the sub callback and this task.
+                          // Make sure the ws hasn't closed between the reader callback and this task.
                           if (!global()->running ||
                               !global()->active_ws.count(ws)) {
                             return;
@@ -138,7 +138,7 @@ struct WSSub {
                                    uWS::TEXT, true);
                         });
 
-                    // Maybe block subscriber callback thread.
+                    // Maybe block reader callback thread.
                     if (scheduler != scheduler_t::IMMEDIATE) {
                       std::unique_lock<std::mutex> lk{global()->mu};
                       global()->cv.wait(lk, [pre_send_cnt, curr_cnt]() {
@@ -153,7 +153,7 @@ struct WSSub {
             },
         .drain =
             [](auto* ws) {
-              auto* data = (WSSub::Data*)ws->getUserData();
+              auto* data = (WSRead::Data*)ws->getUserData();
               if (data->scheduler == scheduler_t::ON_DRAIN && ws->getBufferedAmount() == 0) {
                 (*data->scheduler_event_count)++;
                 global()->cv.notify_all();
@@ -163,7 +163,7 @@ struct WSSub {
         .pong = nullptr,
         .close =
             [](auto* ws, int code, std::string_view msg) {
-              auto* data = (WSSub::Data*)ws->getUserData();
+              auto* data = (WSRead::Data*)ws->getUserData();
               *data->scheduler_event_count = -1;
               global()->active_ws.erase(ws);
               global()->cv.notify_all();

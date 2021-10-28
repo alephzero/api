@@ -38,4 +38,15 @@ const std::unordered_map<std::string, a0_reader_iter_t>& iter_map() {
   return val;
 }
 
+const std::unordered_map<std::string, LogLevel>& level_map() {
+  static std::unordered_map<std::string, LogLevel> val = {
+      {"CRIT", LogLevel::CRIT},
+      {"ERR", LogLevel::ERR},
+      {"WARN", LogLevel::WARN},
+      {"INFO", LogLevel::INFO},
+      {"DBG", LogLevel::DBG},
+  };
+  return val;
+}
+
 }  // namespace a0::api
