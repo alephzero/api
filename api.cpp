@@ -5,6 +5,7 @@
 #include "a0/api/actions/rest_pub.hpp"
 #include "a0/api/actions/rest_rpc.hpp"
 #include "a0/api/actions/rest_write.hpp"
+#include "a0/api/actions/ws_discover.hpp"
 #include "a0/api/actions/ws_log.hpp"
 #include "a0/api/actions/ws_prpc.hpp"
 #include "a0/api/actions/ws_read.hpp"
@@ -36,6 +37,7 @@ int main() {
   app.ws<a0::api::WSRead::Data>("/wsapi/read", a0::api::WSRead::behavior());
   app.ws<a0::api::WSSub::Data>("/wsapi/sub", a0::api::WSSub::behavior());
   app.ws<a0::api::WSPrpc::Data>("/wsapi/prpc", a0::api::WSPrpc::behavior());
+  app.ws<a0::api::WSDiscover::Data>("/wsapi/discover", a0::api::WSDiscover::behavior());
   app.listen(PORT, [&](auto* socket) {
     a0::api::global()->listen_socket = socket;
     a0::Publisher(API_READY_TOPIC).pub("ready");

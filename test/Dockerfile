@@ -12,6 +12,6 @@ RUN python3 -m pip install -U \
     requests \
     websockets==9.1
 
-COPY --from=alephzero_api /api.bin /
+COPY --from=alephzero/api:cov /api.bin /
 COPY ./test /test
 ENTRYPOINT ["python3", "-m", "pytest", "/test/test_api.py"]

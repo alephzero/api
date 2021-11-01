@@ -52,9 +52,9 @@ static inline void rest_rpc(uWS::HttpResponse<false>* res,
     // Perform requested action.
     // TODO(lshamis): This hurts! There must be a better way to manage the
     // memory here.
-    auto* rpc_client = new a0::RpcClient(req_msg.topic);
+    auto* rpc_client = new RpcClient(req_msg.topic);
 
-    auto callback = [res, rpc_client, req_msg](a0::Packet pkt) {
+    auto callback = [res, rpc_client, req_msg](Packet pkt) {
       global()->event_loop->defer([res, rpc_client, pkt, req_msg]() {
         nlohmann::json out = {
             {"headers", strutil::flatten(pkt.headers())},
