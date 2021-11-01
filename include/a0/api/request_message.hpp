@@ -16,7 +16,7 @@ struct RequestMessage {
   // Commonly requested fields.
   std::string path;
   std::string topic;
-  a0::Packet pkt;
+  Packet pkt;
   std::function<std::string(std::string_view)> response_encoder;
 
   template <typename FieldT>
@@ -152,7 +152,7 @@ static inline RequestMessage ParseRequestMessage(std::string_view str) {
   msg.maybe_option_to("response_encoding", Encoders(), msg.response_encoder);
 
   // Compose the packet.
-  msg.pkt = a0::Packet(std::move(headers), std::move(payload));
+  msg.pkt = Packet(std::move(headers), std::move(payload));
 
   return msg;
 }

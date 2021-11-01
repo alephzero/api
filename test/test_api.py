@@ -568,3 +568,58 @@ async def test_prpc(sandbox):
         assert timedout
 
     assert len(cancel_ids) == 3 and connect_ids == cancel_ids
+
+
+async def test_discovery(sandbox):
+    endpoint = f"ws://localhost:{os.environ['PORT_STR']}/wsapi/discover"
+    sub_data = {
+        "protocol": "pubsub",
+        "topic": "*b*",
+    }
+    a0.Publisher("aaa").pub("")
+    a0.Publisher("bbb").pub("")
+
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert resp["relpath"] == "bbb.pubsub.a0"
+            assert resp["topic"] == "bbb"
+        except asyncio.TimeoutError:
+            assert False
+
+        timed_out = False
+        try:
+            await asyncio.wait_for(ws.recv(), timeout=3.0)
+        except asyncio.TimeoutError:
+            timed_out = True
+        assert timed_out
+
+        a0.Publisher("bbbbb").pub("")
+        try:
+            resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert resp["relpath"] == "bbbbb.pubsub.a0"
+            assert resp["topic"] == "bbbbb"
+        except asyncio.TimeoutError:
+            assert False
+
+    sub_data["topic"] = "**/*c*"
+    a0.Publisher("ddd/ccc").pub("")
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert resp["relpath"] == "ddd/ccc.pubsub.a0"
+            assert resp["topic"] == "ddd/ccc"
+        except asyncio.TimeoutError:
+            assert False
+
+        a0.Publisher("ddd/ddd/ccc").pub("")
+        try:
+            resp = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert resp["relpath"] == "ddd/ddd/ccc.pubsub.a0"
+            assert resp["topic"] == "ddd/ddd/ccc"
+        except asyncio.TimeoutError:
+            assert False

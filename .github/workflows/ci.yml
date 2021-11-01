@@ -20,11 +20,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build API
-      run: docker build -t alephzero_api --build-arg=mode=cov .
+      run: docker build -t alephzero/api:cov --build-arg=mode=cov .
     - name: Build API Test
-      run: docker build -t alephzero_api_test -f test/Dockerfile .
+      run: docker build -t alephzero/api_test -f test/Dockerfile .
     - name: Run Test
-      run: docker run --rm alephzero_api_test
+      run: docker run --rm alephzero/api_test
     # TODO(lshamis): Add coverage
     #   run: bash <(curl -s https://codecov.io/bash)
 
