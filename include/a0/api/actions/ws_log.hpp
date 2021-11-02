@@ -13,6 +13,8 @@ namespace a0::api {
 //     ws.send(JSON.stringify({
 //         topic: "...",                 // required
 //         level: "INFO",                // optional, one of "DBG", "INFO", "WARN", "ERR", "CRIT"
+//         init: "...",                  // required, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
+//         iter: "...",                  // required, one of "NEXT", "NEWEST"
 //         response_encoding: "none",    // optional, one of "none", "base64"
 //         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
@@ -80,6 +82,24 @@ struct WSLog {
                 return;
               }
 
+              // Get the required 'init' option.
+              a0_reader_init_t init;
+              try {
+                req_msg.require_option_to("init", init_map(), init);
+              } catch (std::exception& e) {
+                ws->end(4000, e.what());
+                return;
+              }
+
+              // Get the required 'iter' option.
+              a0_reader_iter_t iter;
+              try {
+                req_msg.require_option_to("iter", iter_map(), iter);
+              } catch (std::exception& e) {
+                ws->end(4000, e.what());
+                return;
+              }
+
               // Get the optional 'scheduler' option.
               try {
                 req_msg.maybe_option_to("scheduler", scheduler_map(), data->scheduler);
@@ -91,7 +111,7 @@ struct WSLog {
               // Create the log listener.
               // Note: we don't want to use the "ws" or "data" directly in the log listener thread.
               data->listener = std::make_unique<LogListener>(
-                  req_msg.topic, level,
+                  req_msg.topic, level, init, iter,
                   [ws, req_msg,
                    scheduler = data->scheduler,
                    curr_cnt = data->scheduler_event_count](Packet pkt) {
