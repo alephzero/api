@@ -1,7 +1,5 @@
 #pragma once
 
-#include <a0/topic.hpp>
-
 #include <App.h>
 #include <a0.h>
 
@@ -85,12 +83,9 @@ struct WSDiscover {
 
               // Get the required 'protocol' option.
               std::string glob_path;
-              std::string protocol_tmpl;
+              std::string protocol_tmpl = "**/*";
               try {
-                req_msg.require_option_to("protocol", protocol_map, protocol_tmpl);
-                if (req_msg.topic.empty()) {
-                  req_msg.topic = "**/*";
-                }
+                req_msg.maybe_option_to("protocol", protocol_map, protocol_tmpl);
                 glob_path = std::filesystem::path(env::root()) / topic_path(protocol_tmpl, req_msg.topic);
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
