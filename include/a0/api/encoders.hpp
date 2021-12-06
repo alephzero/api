@@ -30,7 +30,7 @@ std::string encode(std::string_view input) {
   std::string out;
 
   int a = 0, b = -6;
-  for (auto c : input) {
+  for (uint8_t c : input) {
     a = (a << 8) + c;
     b += 8;
     while (b >= 0) {
