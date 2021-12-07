@@ -151,8 +151,8 @@ def test_pub(sandbox):
     sub = a0.SubscriberSync("mytopic", a0.INIT_OLDEST, a0.ITER_NEXT)
     hdrs = []
     msgs = []
-    while sub.has_next():
-        pkt = sub.next()
+    while sub.can_read():
+        pkt = sub.read()
         hdrs.append(list(pkt.headers))  # Inspect copies of headers.
         msgs.append(pkt.payload)
     assert len(hdrs) == 2
@@ -224,8 +224,8 @@ def test_write(sandbox):
     reader = a0.ReaderSync(a0.File("mypath"), a0.INIT_OLDEST, a0.ITER_NEXT)
     hdrs = []
     msgs = []
-    while reader.has_next():
-        pkt = reader.next()
+    while reader.can_read():
+        pkt = reader.read()
         hdrs.append(list(pkt.headers))  # Inspect copies of headers.
         msgs.append(pkt.payload)
     assert len(hdrs) == 3
