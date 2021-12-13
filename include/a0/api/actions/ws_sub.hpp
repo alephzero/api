@@ -30,7 +30,7 @@ struct WSSub {
     std::unique_ptr<Subscriber> sub;
   };
 
-  static uWS::App::WebSocketBehavior behavior() {
+  static uWS::App::WebSocketBehavior<Data> behavior() {
     return {
         .compression = uWS::SHARED_COMPRESSOR,
         .maxPayloadLength = 16 * 1024 * 1024,
@@ -46,7 +46,7 @@ struct WSSub {
                 return;
               }
 
-              auto* data = (WSSub::Data*)ws->getUserData();
+              auto* data = ws->getUserData();
 
               // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
               if (data->init && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
@@ -129,13 +129,19 @@ struct WSSub {
                               !global()->active_ws.count(ws)) {
                             return;
                           }
-                          ws->send(nlohmann::json(
+                          auto send_status = ws->send(nlohmann::json(
                                        {
                                            {"headers", headers},
                                            {"payload", payload},
                                        })
                                        .dump(),
                                    uWS::TEXT, true);
+
+                          auto* data = ws->getUserData();
+                          if (data->scheduler == scheduler_t::ON_DRAIN && send_status == ws->SUCCESS) {
+                            (*data->scheduler_event_count)++;
+                            global()->cv.notify_all();
+                          }
                         });
 
                     // Maybe block subscriber callback thread.
@@ -153,7 +159,7 @@ struct WSSub {
             },
         .drain =
             [](auto* ws) {
-              auto* data = (WSSub::Data*)ws->getUserData();
+              auto* data = ws->getUserData();
               if (data->scheduler == scheduler_t::ON_DRAIN && ws->getBufferedAmount() == 0) {
                 (*data->scheduler_event_count)++;
                 global()->cv.notify_all();
@@ -163,7 +169,7 @@ struct WSSub {
         .pong = nullptr,
         .close =
             [](auto* ws, int code, std::string_view msg) {
-              auto* data = (WSSub::Data*)ws->getUserData();
+              auto* data = ws->getUserData();
               *data->scheduler_event_count = -1;
               global()->active_ws.erase(ws);
               global()->cv.notify_all();

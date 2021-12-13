@@ -11,7 +11,7 @@ struct GlobalState {
   std::atomic<bool> running;
   // The following should only be used within the event_loop.
   us_listen_socket_t* listen_socket;
-  std::set<uWS::WebSocket<false, true>*> active_ws;
+  std::set<uWS::AsyncSocket<false>*> active_ws;
   // The following should only be used to lock alephzero threads.
   std::mutex mu;
   std::condition_variable cv;
@@ -37,7 +37,7 @@ void shutdown() {
       global()->listen_socket = nullptr;
     }
     for (auto* ws : global()->active_ws) {
-      ws->close();
+      ((uWS::WebSocket<false, true, void>*)ws)->close();
     }
   });
 }

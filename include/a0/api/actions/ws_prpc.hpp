@@ -40,7 +40,7 @@ struct WSPrpc {
     std::shared_ptr<NewestPkt> newest_pkt{std::make_shared<NewestPkt>()};
   };
 
-  static uWS::App::WebSocketBehavior behavior() {
+  static uWS::App::WebSocketBehavior<Data> behavior() {
     return {
         .compression = uWS::SHARED_COMPRESSOR,
         .maxPayloadLength = 16 * 1024 * 1024,
@@ -56,7 +56,7 @@ struct WSPrpc {
                 return;
               }
 
-              auto* data = (WSPrpc::Data*)ws->getUserData();
+              auto* data = ws->getUserData();
 
               // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
               if (data->init && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
@@ -140,7 +140,7 @@ struct WSPrpc {
                     return;
                   }
 
-                  auto* data = (WSPrpc::Data*)ws->getUserData();
+                  auto* data = ws->getUserData();
 
                   if (data->iter == A0_ITER_NEXT) {
                     ws->send(nlohmann::json({
@@ -155,7 +155,7 @@ struct WSPrpc {
                     if (!data->newest_pkt->pkt) {
                       return;
                     }
-                    ws->send(nlohmann::json({
+                    auto send_status = ws->send(nlohmann::json({
                                                 {"headers", strutil::flatten(data->newest_pkt->pkt->headers())},
                                                 {"payload", data->newest_pkt->pkt->payload()},
                                                 {"done", data->newest_pkt->done},
@@ -163,6 +163,12 @@ struct WSPrpc {
                                  .dump(),
                              uWS::TEXT, true);
                     data->newest_pkt->pkt = std::nullopt;
+
+                    auto* data = ws->getUserData();
+                    if (data->scheduler == scheduler_t::ON_DRAIN && send_status == ws->SUCCESS) {
+                      (*data->scheduler_event_count)++;
+                      global()->cv.notify_all();
+                    }
                   }
                 });
 
@@ -182,7 +188,7 @@ struct WSPrpc {
             },
         .drain =
             [](auto* ws) {
-              auto* data = (WSPrpc::Data*)ws->getUserData();
+              auto* data = ws->getUserData();
               if (data->scheduler == scheduler_t::ON_DRAIN && ws->getBufferedAmount() == 0) {
                 (*data->scheduler_event_count)++;
                 global()->cv.notify_all();
@@ -192,7 +198,7 @@ struct WSPrpc {
         .pong = nullptr,
         .close =
             [](auto* ws, int code, std::string_view msg) {
-              auto* data = (WSPrpc::Data*)ws->getUserData();
+              auto* data = ws->getUserData();
               *data->scheduler_event_count = -1;
               if (data->client) {
                 data->client->cancel(data->connection_id);
