@@ -140,12 +140,12 @@ struct WSLog {
                             return;
                           }
                           auto send_status = ws->send(nlohmann::json(
-                                       {
-                                           {"headers", headers},
-                                           {"payload", payload},
-                                       })
-                                       .dump(),
-                                   uWS::TEXT, true);
+                                                          {
+                                                              {"headers", headers},
+                                                              {"payload", payload},
+                                                          })
+                                                          .dump(),
+                                                      uWS::TEXT, true);
 
                           auto* data = ws->getUserData();
                           if (data->scheduler == scheduler_t::ON_DRAIN && send_status == ws->SUCCESS) {

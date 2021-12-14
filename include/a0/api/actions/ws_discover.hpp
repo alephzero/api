@@ -134,12 +134,12 @@ struct WSDiscover {
                               relpath.size() - (protocol_tmpl.size() - tmpl_topic_idx - tmpl_topic.size()));
 
                           auto send_status = ws->send(nlohmann::json{
-                                       {"abspath", path},
-                                       {"relpath", relpath},
-                                       {"topic", topic},
-                                   }
-                                       .dump(),
-                                   uWS::TEXT, true);
+                                                          {"abspath", path},
+                                                          {"relpath", relpath},
+                                                          {"topic", topic},
+                                                      }
+                                                          .dump(),
+                                                      uWS::TEXT, true);
 
                           auto* data = ws->getUserData();
                           if (data->scheduler == scheduler_t::ON_DRAIN && send_status == ws->SUCCESS) {

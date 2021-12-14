@@ -156,12 +156,12 @@ struct WSPrpc {
                       return;
                     }
                     auto send_status = ws->send(nlohmann::json({
-                                                {"headers", strutil::flatten(data->newest_pkt->pkt->headers())},
-                                                {"payload", data->newest_pkt->pkt->payload()},
-                                                {"done", data->newest_pkt->done},
-                                            })
-                                 .dump(),
-                             uWS::TEXT, true);
+                                                                   {"headers", strutil::flatten(data->newest_pkt->pkt->headers())},
+                                                                   {"payload", data->newest_pkt->pkt->payload()},
+                                                                   {"done", data->newest_pkt->done},
+                                                               })
+                                                    .dump(),
+                                                uWS::TEXT, true);
                     data->newest_pkt->pkt = std::nullopt;
 
                     auto* data = ws->getUserData();
