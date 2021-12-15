@@ -15,15 +15,15 @@ RUN mkdir -p /alephzero && \
 
 RUN mkdir -p /uNetworking && \
     cd /uNetworking && \
-    git clone --depth 1 --branch v0.7.1 https://github.com/uNetworking/uSockets.git && \
-    git clone --depth 1 --branch v18.23.0  https://github.com/uNetworking/uWebSockets.git && \
+    git clone --depth 1 --branch v0.8.1 https://github.com/uNetworking/uSockets.git && \
+    git clone --depth 1 --branch v20.8.0  https://github.com/uNetworking/uWebSockets.git && \
     cd /uNetworking/uSockets && \
     make -j && \
     mv /uNetworking/uSockets/uSockets.a /uNetworking/uSockets/libuSockets.a
 
 RUN mkdir -p /nlohmann && \
     cd /nlohmann && \
-    wget https://github.com/nlohmann/json/releases/download/v3.9.1/json.hpp
+    wget https://github.com/nlohmann/json/releases/download/v3.10.4/json.hpp
 
 WORKDIR /
 COPY include /include

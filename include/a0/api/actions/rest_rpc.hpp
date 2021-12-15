@@ -21,8 +21,8 @@ namespace a0::api {
 //             ],
 //             payload: "...",               // required
 //         },
-//         request_encoding: "none"          // optional, one of "none", "base64"
-//         response_encoding: "none"         // optional, one of "none", "base64"
+//         request_encoding: "none",         // optional, one of "none", "base64"
+//         response_encoding: "none",        // optional, one of "none", "base64"
 //     })
 // })
 // .then((r) => { return r.text() })
