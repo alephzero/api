@@ -28,10 +28,10 @@ struct WSPrpc {
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
 
     std::unique_ptr<PrpcClient> client;
-    a0_reader_iter_t iter{A0_ITER_NEXT};
+    Reader::Iter iter{ITER_NEXT};
     std::string connection_id;
 
-    // If iter is A0_ITER_NEWEST.
+    // If iter is ITER_NEWEST.
     struct NewestPkt {
       std::optional<Packet> pkt;
       bool done;
@@ -121,7 +121,7 @@ struct WSPrpc {
                 // event loop.
                 auto headers = pkt.headers();
                 auto payload = req_msg.response_encoder(pkt.payload());
-                if (iter == A0_ITER_NEWEST) {
+                if (iter == ITER_NEWEST) {
                   std::unique_lock<std::mutex> lk{newest_pkt->mtx};
                   newest_pkt->pkt = Packet(headers, payload);
                   newest_pkt->done = done;
@@ -142,7 +142,7 @@ struct WSPrpc {
 
                   auto* data = ws->getUserData();
 
-                  if (data->iter == A0_ITER_NEXT) {
+                  if (data->iter == ITER_NEXT) {
                     ws->send(nlohmann::json({
                                                 {"headers", strutil::flatten(headers)},
                                                 {"payload", payload},
@@ -150,7 +150,7 @@ struct WSPrpc {
                                             })
                                  .dump(),
                              uWS::TEXT, true);
-                  } else if (data->iter == A0_ITER_NEWEST) {
+                  } else if (data->iter == ITER_NEWEST) {
                     std::unique_lock<std::mutex> lk{data->newest_pkt->mtx};
                     if (!data->newest_pkt->pkt) {
                       return;
@@ -173,7 +173,7 @@ struct WSPrpc {
                 });
 
                 // Maybe block subscriber callback thread.
-                if (iter == A0_ITER_NEXT && scheduler != scheduler_t::IMMEDIATE) {
+                if (iter == ITER_NEXT && scheduler != scheduler_t::IMMEDIATE) {
                   std::unique_lock<std::mutex> lk{global()->mu};
                   global()->cv.wait(lk, [pre_send_cnt, curr_cnt]() {
                     // Unblock if:
