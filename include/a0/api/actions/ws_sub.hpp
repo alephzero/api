@@ -12,8 +12,8 @@ namespace a0::api {
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
 //         topic: "...",                 // required
-//         init: "...",                  // required, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
-//         iter: "...",                  // required, one of "NEXT", "NEWEST"
+//         init: "AWAIT_NEW",            // optional, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
+//         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
 //         response_encoding: "none",    // optional, one of "none", "base64"
 //         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
@@ -73,18 +73,18 @@ struct WSSub {
               }
 
               // Get the required 'init' option.
-              Reader::Init init;
+              auto init = Reader::Init::AWAIT_NEW;
               try {
-                req_msg.require_option_to("init", init_map(), init);
+                req_msg.maybe_option_to("init", init_map(), init);
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
                 return;
               }
 
               // Get the required 'iter' option.
-              Reader::Iter iter;
+              auto iter = Reader::Iter::NEXT;
               try {
-                req_msg.require_option_to("iter", iter_map(), iter);
+                req_msg.maybe_option_to("iter", iter_map(), iter);
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
                 return;
