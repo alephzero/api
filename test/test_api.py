@@ -42,8 +42,7 @@ class RunApi:
                 ns.state = RunApi.State.STARTED
                 ns.state_cv.notify_all()
 
-        sub = a0.Subscriber("api_ready", a0.INIT_AWAIT_NEW, a0.ITER_NEXT,
-                            check_ready)
+        sub = a0.Subscriber("api_ready", check_ready)
 
         self.api_proc = subprocess.Popen(
             [
@@ -148,7 +147,7 @@ def test_pub(sandbox):
     assert resp.status_code == 400
     assert resp.text == "Request must be a json object."
 
-    sub = a0.SubscriberSync("mytopic", a0.INIT_OLDEST, a0.ITER_NEXT)
+    sub = a0.SubscriberSync("mytopic", a0.INIT_OLDEST)
     hdrs = []
     msgs = []
     while sub.can_read():
@@ -221,7 +220,7 @@ def test_write(sandbox):
     assert resp.text == "success"
     pub_data.pop("standard_headers")
 
-    reader = a0.ReaderSync(a0.File("mypath"), a0.INIT_OLDEST, a0.ITER_NEXT)
+    reader = a0.ReaderSync(a0.File("mypath"), a0.INIT_OLDEST)
     hdrs = []
     msgs = []
     while reader.can_read():

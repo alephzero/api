@@ -42,8 +42,8 @@ ws = new WebSocket(`ws://${api_addr}/wsapi/sub`)
 ws.onopen = () => {
     ws.send(JSON.stringify({
         topic: "...",                 // required
-        init: "...",                  // required, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
-        iter: "...",                  // required, one of "NEXT", "NEWEST"
+        init: "AWAIT_NEW",            // optional, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
+        iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
         response_encoding: "none",    // optional, one of "none", "base64"
         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
     }))
@@ -98,8 +98,8 @@ ws.onopen = () => {
     ws.send(JSON.stringify({
         topic: "...",                 // required
         level: "INFO",                // optional, one of "DBG", "INFO", "WARN", "ERR", "CRIT"
-        init: "...",                  // required, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
-        iter: "...",                  // required, one of "NEXT", "NEWEST"
+        init: "AWAIT_NEW",            // optional, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
+        iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
         response_encoding: "none",    // optional, one of "none", "base64"
         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
     }))
