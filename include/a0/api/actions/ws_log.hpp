@@ -83,7 +83,7 @@ struct WSLog {
               }
 
               // Get the required 'init' option.
-              a0_reader_init_t init;
+              Reader::Init init;
               try {
                 req_msg.require_option_to("init", init_map(), init);
               } catch (std::exception& e) {
@@ -92,7 +92,7 @@ struct WSLog {
               }
 
               // Get the required 'iter' option.
-              a0_reader_iter_t iter;
+              Reader::Iter iter;
               try {
                 req_msg.require_option_to("iter", iter_map(), iter);
               } catch (std::exception& e) {
