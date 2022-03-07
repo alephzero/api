@@ -27,7 +27,7 @@ struct WSSub {
     scheduler_t scheduler{scheduler_t::IMMEDIATE};
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
 
-    std::unique_ptr<Subscriber> sub;
+    std::unique_ptr<SubscriberZeroCopy> sub;
   };
 
   static uWS::App::WebSocketBehavior<Data> behavior() {
@@ -72,19 +72,33 @@ struct WSSub {
                 return;
               }
 
-              // Get the required 'init' option.
-              auto init = Reader::Init::AWAIT_NEW;
+              // Get the required 'iter' option.
+              auto iter = Reader::Iter::NEXT;
               try {
-                req_msg.maybe_option_to("init", init_map(), init);
+                req_msg.maybe_option_to("iter", iter_map(), iter);
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
                 return;
               }
 
-              // Get the required 'iter' option.
-              auto iter = Reader::Iter::NEXT;
+              // Get the optional 'init' option.
+              // It may be an int representing the earliest acceptable sequence number.
+              auto init = Reader::Init::AWAIT_NEW;
+              uint64_t seq_min = 0;
               try {
-                req_msg.maybe_option_to("iter", iter_map(), iter);
+                auto init_field = req_msg.raw_msg.find("init");
+                if (init_field != req_msg.raw_msg.end()) {
+                  if (init_field->is_number()) {
+                    seq_min = init_field->get<uint64_t>();
+                    if (iter == Reader::Iter::NEXT) {
+                      init = Reader::Init::OLDEST;
+                    } else if (iter == Reader::Iter::NEWEST) {
+                      init = Reader::Init::MOST_RECENT;
+                    }
+                  } else {
+                    req_msg.maybe_option_to("init", init_map(), init);
+                  }
+                }
               } catch (std::exception& e) {
                 ws->end(4000, e.what());
                 return;
@@ -100,23 +114,40 @@ struct WSSub {
 
               // Create the subscriber.
               // Note: we don't want to use the "ws" or "data" directly in the subscriber thread.
-              data->sub = std::make_unique<Subscriber>(
+              data->sub = std::make_unique<SubscriberZeroCopy>(
                   req_msg.topic, init, iter,
-                  [ws, req_msg,
+                  [ws, req_msg, seq_min,
                    scheduler = data->scheduler,
-                   curr_cnt = data->scheduler_event_count](Packet pkt) {
+                   curr_cnt = data->scheduler_event_count](TransportLocked tlk, FlatPacket fpkt_cpp) {
                     if (!global()->running) {
                       return;
                     }
 
+                    // Skip packets prior to seq_min.
+                    if (tlk.frame().hdr.seq <= seq_min) {
+                      return;
+                    }
+
+                    // Copy data out of the transport.
+                    // We can't use the data in the transport once we unlock.
+                    a0_flat_packet_t fpkt_c = *fpkt_cpp.c;
+                    std::vector<uint8_t> fpkt_copy_data(fpkt_c.buf.size);
+                    a0_flat_packet_t fpkt_copy{{fpkt_copy_data.data(), fpkt_c.buf.size}};
+                    memcpy(fpkt_copy.buf.data, fpkt_c.buf.data, fpkt_c.buf.size);
+
+                    // Unlock the transport. It needs to be relocked before the function returns.
+                    auto eos_relock_transport = scope_unlock_transport(*tlk.c);
+
+                    // Save views and perform work we don't want to do on the event loop.
+                    auto headers = strutil::flatten_headers(fpkt_copy);
+
+                    a0_buf_t payload_buf;
+                    a0_flat_packet_payload(fpkt_copy, &payload_buf);
+                    auto payload = req_msg.response_encoder(string_view((const char*)payload_buf.data, payload_buf.size));
+
                     // Save the event count before sending the message.
                     // Depending on the scheduler, the subscriber might block until the event counter increments.
                     int64_t pre_send_cnt = *curr_cnt;
-
-                    // Save views and perform work we don't want to do on the
-                    // event loop.
-                    auto headers = strutil::flatten(pkt.headers());
-                    auto payload = req_msg.response_encoder(pkt.payload());
 
                     // Schedule the event loop to perform the send operation.
                     // We can use "ws" or "data" within the event loop, assuming the ws is still alive.

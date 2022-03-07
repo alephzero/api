@@ -474,6 +474,65 @@ async def test_sub(sandbox):
         except asyncio.TimeoutError:
             assert False
 
+    del sub_data["response_encoding"]
+    del sub_data["scheduler"]
+    sub_data["init"] = 0
+    sub_data["iter"] = "NEXT"
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 0"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "0"
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 1"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "1"
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 2"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "2"
+        except asyncio.TimeoutError:
+            assert False
+
+    sub_data["init"] = 1
+    sub_data["iter"] = "NEXT"
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 1"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "1"
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 2"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "2"
+        except asyncio.TimeoutError:
+            assert False
+
+    sub_data["init"] = 2
+    sub_data["iter"] = "NEXT"
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 2"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "2"
+        except asyncio.TimeoutError:
+            assert False
+
+    sub_data["init"] = 1
+    sub_data["iter"] = "NEWEST"
+    async with websockets.connect(endpoint) as ws:
+        await ws.send(json.dumps(sub_data))
+
+        try:
+            pkt = json.loads(await asyncio.wait_for(ws.recv(), timeout=1.0))
+            assert pkt["payload"] == "payload 2"
+            assert dict(pkt["headers"])["a0_transport_seq"] == "2"
+        except asyncio.TimeoutError:
+            assert False
+
 
 async def test_prpc(sandbox):
     endpoint = f"ws://localhost:{os.environ['PORT_STR']}/wsapi/prpc"

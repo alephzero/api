@@ -67,6 +67,20 @@ struct strutil {
     }
     return result;
   }
+
+  static std::vector<std::pair<std::string, std::string>> flatten_headers(a0_flat_packet_t fpkt) {
+    std::vector<std::pair<std::string, std::string>> hdrs;
+
+    a0_flat_packet_header_iterator_t iter;
+    a0_packet_header_t hdr;
+
+    a0_flat_packet_header_iterator_init(&iter, &fpkt);
+    while (a0_flat_packet_header_iterator_next(&iter, &hdr) == A0_OK) {
+      hdrs.push_back({std::string(hdr.key), std::string(hdr.val)});
+    }
+
+    return hdrs;
+  }
 };
 
 }  // namespace a0::api
