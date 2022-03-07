@@ -17,4 +17,4 @@ std::shared_ptr<void> scope_unlock_transport(a0_transport_locked_t tlk) {
   });
 }
 
-}  // a0::api
+}  // namespace a0::api
