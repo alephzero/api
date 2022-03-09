@@ -33,28 +33,17 @@ class RunApi:
     def start(self):
         assert not self.api_proc
 
-        ns = types.SimpleNamespace()
-        ns.state = RunApi.State.CREATED
-        ns.state_cv = threading.Condition()
-
-        def check_ready(pkt):
-            with ns.state_cv:
-                ns.state = RunApi.State.STARTED
-                ns.state_cv.notify_all()
-
-        sub = a0.Subscriber("api_ready", check_ready)
+        api_ready = a0.SubscriberSync("api_ready")
 
         self.api_proc = subprocess.Popen(
             [
                 "valgrind", "--leak-check=full", "--error-exitcode=125",
-                "/api.bin"
+                "bin/api"
             ],
             env=os.environ.copy(),
         )
 
-        with ns.state_cv:
-            assert ns.state_cv.wait_for(
-                lambda: ns.state == RunApi.State.STARTED, timeout=10)
+        api_ready.read_blocking(timeout=10)
 
     def shutdown(self):
         assert self.api_proc
