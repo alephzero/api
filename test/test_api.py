@@ -10,7 +10,6 @@ import requests
 import subprocess
 import sys
 import tempfile
-import threading
 import types
 import websockets
 
