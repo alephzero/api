@@ -124,13 +124,14 @@ ws.onmessage = (evt) => {
 }
 ```
 
-## Development
-
-...
-
 ## Running the code
 
-Running a pre-compiled docker image:
+`git clone` this repo and run:
+```sh
+make run
+```
+
+Or use a pre-compiled docker image:
 ```sh
 docker run \
     --rm -it \
@@ -140,5 +141,3 @@ docker run \
     -p 24880:24880 \
     ghcr.io/alephzero/api:latest
 ```
-
-or git clone this repo and `./run.sh`
