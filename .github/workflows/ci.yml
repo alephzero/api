@@ -16,6 +16,8 @@ jobs:
     name: Unit Test
 
     runs-on: ubuntu-latest
+    container:
+      image: 'ubuntu:20.04'
 
     steps:
     - uses: actions/checkout@v1
