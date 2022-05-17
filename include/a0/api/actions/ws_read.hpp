@@ -16,7 +16,7 @@ namespace a0::api {
 //         init: "AWAIT_NEW",            // optional, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
 //         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
 //         response_encoding: "none",    // optional, one of "none", "base64"
-//         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+//         scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
 // }
 // ws.onmessage = (evt) => {
@@ -25,7 +25,7 @@ namespace a0::api {
 struct WSRead {
   struct Data {
     bool init{false};
-    scheduler_t scheduler{scheduler_t::IMMEDIATE};
+    scheduler_t scheduler{scheduler_t::ON_DRAIN};
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
 
     std::unique_ptr<ReaderZeroCopy> reader;

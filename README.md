@@ -45,7 +45,7 @@ ws.onopen = () => {
         init: "AWAIT_NEW",            // optional, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
         response_encoding: "none",    // optional, one of "none", "base64"
-        scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+        scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
     }))
 }
 ws.onmessage = (evt) => {
@@ -83,7 +83,7 @@ ws.onopen = () => {
         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
         request_encoding: "none",     // optional, one of "none", "base64"
         response_encoding: "none",    // optional, one of "none", "base64"
-        scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+        scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
     }))
 }
 ws.onmessage = (evt) => {
@@ -101,7 +101,7 @@ ws.onopen = () => {
         init: "AWAIT_NEW",            // optional, one of "OLDEST", "MOST_RECENT", "AWAIT_NEW"
         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
         response_encoding: "none",    // optional, one of "none", "base64"
-        scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+        scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
     }))
 }
 ws.onmessage = (evt) => {
@@ -116,7 +116,7 @@ ws.onopen = () => {
     ws.send(JSON.stringify({
         protocol: "...",              // required, one of "file", "pubsub", "rpc", "prpc", "log", "cfg"
         topic: "**/*",                // optional
-        scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+        scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
     }))
 }
 ws.onmessage = (evt) => {

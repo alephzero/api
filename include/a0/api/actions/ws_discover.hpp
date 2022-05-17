@@ -14,7 +14,7 @@ namespace a0::api {
 //     ws.send(JSON.stringify({
 //         protocol: "...",              // required, one of "file", "pubsub", "rpc", "prpc", "log", "cfg"
 //         topic: "**/*",                // optional
-//         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+//         scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
 // }
 // ws.onmessage = (evt) => {
@@ -23,7 +23,7 @@ namespace a0::api {
 struct WSDiscover {
   struct Data {
     bool init{false};
-    scheduler_t scheduler{scheduler_t::IMMEDIATE};
+    scheduler_t scheduler{scheduler_t::ON_DRAIN};
     std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
 
     std::unique_ptr<Discovery> discovery;
