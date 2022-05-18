@@ -59,7 +59,7 @@ jobs:
     - name: install deps
       run: |
         apt update
-        apt install --no-install-recommends -y clang-format git python3-pip
+        apt install --no-install-recommends -y clang-format python3-pip
         python3 -m pip install -U flake8 yapf
     - name: flake8
       run: python3 -m flake8
@@ -68,8 +68,7 @@ jobs:
     - name: clang-format
       run: |
         find . -name '*.[ch]pp' | xargs \
-          clang-format -i --style=file --verbose
-        git --no-pager diff --exit-code
+          clang-format --dry-run --Werror --style=file
 
   docker:
     name: Push Docker
