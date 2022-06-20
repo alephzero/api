@@ -113,7 +113,8 @@ struct RequestMessage {
   }
 };
 
-static inline RequestMessage ParseRequestMessage(std::string_view str) {
+A0_STATIC_INLINE
+RequestMessage ParseRequestMessage(std::string_view str) {
   RequestMessage msg;
 
   // Check input is JSON.

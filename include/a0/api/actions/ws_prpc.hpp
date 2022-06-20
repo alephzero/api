@@ -15,29 +15,90 @@ namespace a0::api {
 //         iter: "NEXT",                 // optional, one of "NEXT", "NEWEST"
 //         request_encoding: "none",     // optional, one of "none", "base64"
 //         response_encoding: "none",    // optional, one of "none", "base64"
-//         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+//         scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
 // }
 // ws.onmessage = (evt) => {
 //     ... evt.data ...
 // }
 struct WSPrpc {
-  struct Data {
-    bool init{false};
-    scheduler_t scheduler{scheduler_t::IMMEDIATE};
-    std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
-
-    std::unique_ptr<PrpcClient> client;
-    Reader::Iter iter{ITER_NEXT};
-    std::string connection_id;
+  struct AlephZeroCallback {
+    std::shared_ptr<WSCommon> ws_common;
+    std::function<void(std::string)> send;
+    std::function<std::string(std::string_view)> response_encoder;
 
     // If iter is ITER_NEWEST.
     struct NewestPkt {
       std::optional<Packet> pkt;
       bool done;
+      bool ready_to_send{true};
       std::mutex mtx;
     };
     std::shared_ptr<NewestPkt> newest_pkt{std::make_shared<NewestPkt>()};
+
+    // Runs on uWS thread.
+    template <typename WebSocket>
+    AlephZeroCallback(WebSocket* ws, const RequestMessage& req_msg)
+        : ws_common{ws->getUserData()->ws_common},
+          send{ws_common->bind_send(ws)},
+          response_encoder{req_msg.response_encoder} {}
+
+    void do_send(Packet pkt, bool done) {
+      send(nlohmann::json({
+                              {"headers", strutil::flatten(pkt.headers())},
+                              {"payload", response_encoder(pkt.payload())},
+                              {"done", done},
+                          })
+               .dump());
+    }
+
+    void send_newest_locked() {
+      newest_pkt->ready_to_send = true;
+      if (!newest_pkt->pkt) {
+        return;
+      }
+
+      do_send(*newest_pkt->pkt, newest_pkt->done);
+
+      newest_pkt->ready_to_send = ws_common->sched == scheduler_t::IMMEDIATE;
+      newest_pkt->pkt = std::nullopt;
+    }
+
+    void send_newest() {
+      std::unique_lock<std::mutex> lk{newest_pkt->mtx};
+      send_newest_locked();
+    }
+
+    // Runs on A0 thread.
+    void operator()(Packet pkt, bool done) {
+      if (!global()->running) {
+        return;
+      }
+
+      if (ws_common->reader_iter == ITER_NEXT) {
+        // Save the event count before sending the message.
+        // Depending on the scheduler, the log listener might block until the event counter increments.
+        int64_t pre_send_cnt = ws_common->wake_cnt;
+        do_send(pkt, done);
+        ws_common->wait(pre_send_cnt);
+      } else if (ws_common->reader_iter == ITER_NEWEST) {
+        {
+          std::unique_lock<std::mutex> lk{newest_pkt->mtx};
+          newest_pkt->pkt = pkt;
+          newest_pkt->done = done;
+          if (newest_pkt->ready_to_send) {
+            send_newest_locked();
+          }
+        }
+      }
+    }
+  };
+
+  struct Data {
+    std::shared_ptr<WSCommon> ws_common;
+    std::unique_ptr<PrpcClient> client;
+    std::string connection_id;
+    std::unique_ptr<AlephZeroCallback> alephzero_callback;
   };
 
   static uWS::App::WebSocketBehavior<Data> behavior() {
@@ -52,146 +113,34 @@ struct WSPrpc {
         .open = [](auto* ws) { global()->active_ws.insert(ws); },
         .message =
             [](auto* ws, std::string_view msg, uWS::OpCode code) {
-              if (code != uWS::OpCode::TEXT) {
-                return;
-              }
-
               auto* data = ws->getUserData();
-
-              // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
-              if (data->init && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
-                (*data->scheduler_event_count)++;
-                global()->cv.notify_all();
-                return;
+              if (!data->ws_common) {
+                data->ws_common = std::make_shared<WSCommon>();
               }
+              data->ws_common->OnMessageWithHandshake(
+                  ws, msg, code, [ws, data](const RequestMessage& req_msg) {
+                    req_msg.require("topic");
 
-              // Check the handshake hasn't already happend.
-              if (data->init) {
-                ws->end(4000, "Handshake only allowed once per websocket.");
-                return;
-              }
-              data->init = true;
-
-              // Parse the request, including common fields.
-              RequestMessage req_msg;
-              try {
-                req_msg = ParseRequestMessage(msg);
-                req_msg.require("topic");
-              } catch (std::exception& e) {
-                ws->end(4000, e.what());
-                return;
-              }
-
-              // Get the required 'iter' option.
-              try {
-                req_msg.maybe_option_to("iter", iter_map(), data->iter);
-              } catch (std::exception& e) {
-                ws->end(4000, e.what());
-                return;
-              }
-
-              // Get the optional 'scheduler' option.
-              try {
-                req_msg.maybe_option_to("scheduler", scheduler_map(), data->scheduler);
-              } catch (std::exception& e) {
-                ws->end(4000, e.what());
-                return;
-              }
-
-              // Create the prpc.
-              data->client = std::make_unique<PrpcClient>(req_msg.topic);
-              data->connection_id = std::string(req_msg.pkt.id());
-
-              // Note: we don't want to use the "ws" or "data" directly in the prpc thread.
-              data->client->connect(std::move(req_msg.pkt), [ws, req_msg,
-                                                             iter = data->iter,
-                                                             scheduler = data->scheduler,
-                                                             curr_cnt = data->scheduler_event_count,
-                                                             newest_pkt = data->newest_pkt](Packet pkt, bool done) {
-                if (!global()->running) {
-                  return;
-                }
-
-                // Save the event count before sending the message.
-                // Depending on the scheduler, the client might block until
-                // the event counter increments.
-                int64_t pre_send_cnt = *curr_cnt;
-
-                // Save views and perform work we don't want to do on the
-                // event loop.
-                auto headers = pkt.headers();
-                auto payload = req_msg.response_encoder(pkt.payload());
-                if (iter == ITER_NEWEST) {
-                  std::unique_lock<std::mutex> lk{newest_pkt->mtx};
-                  newest_pkt->pkt = Packet(headers, payload);
-                  newest_pkt->done = done;
-                }
-
-                // Schedule the event loop to perform the send operation.
-                // We can use "ws" or "data" within the event loop, assuming
-                // the ws is still alive.
-                global()->event_loop->defer([ws, done,
-                                             headers = std::move(headers),
-                                             payload = std::move(payload)]() {
-                  // Make sure the ws hasn't closed between the sub
-                  // callback and this task.
-                  if (!global()->running ||
-                      !global()->active_ws.count(ws)) {
-                    return;
-                  }
-
-                  auto* data = ws->getUserData();
-
-                  if (data->iter == ITER_NEXT) {
-                    ws->send(nlohmann::json({
-                                                {"headers", strutil::flatten(headers)},
-                                                {"payload", payload},
-                                                {"done", done},
-                                            })
-                                 .dump(),
-                             uWS::TEXT, true);
-                  } else if (data->iter == ITER_NEWEST) {
-                    std::unique_lock<std::mutex> lk{data->newest_pkt->mtx};
-                    if (!data->newest_pkt->pkt) {
-                      return;
+                    data->client = std::make_unique<PrpcClient>(req_msg.topic);
+                    data->connection_id = std::string(req_msg.pkt.id());
+                    data->alephzero_callback = std::make_unique<AlephZeroCallback>(ws, req_msg);
+                    if (data->ws_common->reader_iter == ITER_NEWEST) {
+                      data->ws_common->wake_hook = [data]() {
+                        data->alephzero_callback->send_newest();
+                      };
                     }
-                    auto send_status = ws->send(nlohmann::json({
-                                                                   {"headers", strutil::flatten(data->newest_pkt->pkt->headers())},
-                                                                   {"payload", data->newest_pkt->pkt->payload()},
-                                                                   {"done", data->newest_pkt->done},
-                                                               })
-                                                    .dump(),
-                                                uWS::TEXT, true);
-                    data->newest_pkt->pkt = std::nullopt;
-
-                    auto* data = ws->getUserData();
-                    if (data->scheduler == scheduler_t::ON_DRAIN && send_status == ws->SUCCESS) {
-                      (*data->scheduler_event_count)++;
-                      global()->cv.notify_all();
-                    }
-                  }
-                });
-
-                // Maybe block subscriber callback thread.
-                if (iter == ITER_NEXT && scheduler != scheduler_t::IMMEDIATE) {
-                  std::unique_lock<std::mutex> lk{global()->mu};
-                  global()->cv.wait(lk, [pre_send_cnt, curr_cnt]() {
-                    // Unblock if:
-                    // * system is shutting down.
-                    // * websocket is closing (indicated by -1).
-                    // * the scheduler is ready for the next message.
-                    return !global()->running || *curr_cnt == -1 ||
-                           pre_send_cnt < *curr_cnt;
+                    data->client->connect(
+                        std::move(req_msg.pkt),
+                        [data](Packet pkt, bool done) {
+                          (*data->alephzero_callback)(std::move(pkt), done);
+                        });
                   });
-                }
-              });
             },
         .drain =
             [](auto* ws) {
               auto* data = ws->getUserData();
-              if (data->scheduler == scheduler_t::ON_DRAIN && ws->getBufferedAmount() == 0) {
-                (*data->scheduler_event_count)++;
-                global()->cv.notify_all();
+              if (data->ws_common) {
+                data->ws_common->ondrain(ws);
               }
             },
         .ping = nullptr,
@@ -199,12 +148,12 @@ struct WSPrpc {
         .close =
             [](auto* ws, int code, std::string_view msg) {
               auto* data = ws->getUserData();
-              *data->scheduler_event_count = -1;
               if (data->client) {
                 data->client->cancel(data->connection_id);
               }
-              global()->active_ws.erase(ws);
-              global()->cv.notify_all();
+              if (data->ws_common) {
+                data->ws_common->onclose(ws);
+              }
             },
     };
   }

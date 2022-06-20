@@ -6,15 +6,16 @@
 #include <memory>
 
 #include "a0/api/options.hpp"
+#include "a0/api/ws_common.hpp"
 
 namespace a0::api {
 
 // ws = new WebSocket(`ws://${api_addr}/wsapi/discover`)
 // ws.onopen = () => {
 //     ws.send(JSON.stringify({
-//         protocol: "...",              // required, one of "file", "pubsub", "rpc", "prpc", "log", "cfg"
+//         protocol: "file",             // optional, one of "file", "pubsub", "rpc", "prpc", "log", "cfg"
 //         topic: "**/*",                // optional
-//         scheduler: "IMMEDIATE",       // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
+//         scheduler: "ON_DRAIN",        // optional, one of "IMMEDIATE", "ON_ACK", "ON_DRAIN"
 //     }))
 // }
 // ws.onmessage = (evt) => {
@@ -22,11 +23,51 @@ namespace a0::api {
 // }
 struct WSDiscover {
   struct Data {
-    bool init{false};
-    scheduler_t scheduler{scheduler_t::IMMEDIATE};
-    std::shared_ptr<std::atomic<int64_t>> scheduler_event_count{std::make_shared<std::atomic<int64_t>>(0)};
-
+    std::shared_ptr<WSCommon> ws_common;
     std::unique_ptr<Discovery> discovery;
+  };
+
+  struct AlephZeroCallback {
+    std::shared_ptr<WSCommon> ws_common;
+    std::function<void(std::string)> send;
+
+    const std::string protocol_tmpl;
+    const std::string tmpl_key{"{topic}"};
+    const size_t tmpl_key_idx;  // index of tmpl_key in protocol_tmpl.
+
+    // Runs on uWS thread.
+    template <typename WebSocket>
+    AlephZeroCallback(WebSocket* ws, const RequestMessage& req_msg, std::string protocol_tmpl_)
+        : ws_common{ws->getUserData()->ws_common},
+          send{ws_common->bind_send(ws)},
+          protocol_tmpl{std::move(protocol_tmpl_)},
+          tmpl_key_idx{protocol_tmpl.find(tmpl_key)} {}
+
+    // Runs on A0 thread.
+    void operator()(const std::string& path) {
+      if (!global()->running) {
+        return;
+      }
+
+      std::string relpath = std::string(std::filesystem::relative(path, env::root()));
+
+      std::string topic = relpath.substr(
+          tmpl_key_idx,
+          relpath.size() - (protocol_tmpl.size() - tmpl_key_idx - tmpl_key.size()));
+
+      // Save the event count before sending the message.
+      // Depending on the scheduler, the reader might block until the event counter increments.
+      int64_t pre_send_cnt = ws_common->wake_cnt;
+
+      send(nlohmann::json({
+                              {"abspath", path},
+                              {"relpath", relpath},
+                              {"topic", topic},
+                          })
+               .dump());
+
+      ws_common->wait(pre_send_cnt);
+    }
   };
 
   static uWS::App::WebSocketBehavior<Data> behavior() {
@@ -41,132 +82,28 @@ struct WSDiscover {
         .open = [](auto* ws) { global()->active_ws.insert(ws); },
         .message =
             [](auto* ws, std::string_view msg, uWS::OpCode code) {
-              if (code != uWS::OpCode::TEXT) {
-                return;
-              }
-
               auto* data = ws->getUserData();
-
-              // If the handshake is complete, and scheduler is ON_ACK, and message is "ACK", unblock the next message.
-              if (data->init && data->scheduler == scheduler_t::ON_ACK && msg == std::string_view("ACK")) {
-                (*data->scheduler_event_count)++;
-                global()->cv.notify_all();
-                return;
+              if (!data->ws_common) {
+                data->ws_common = std::make_shared<WSCommon>();
               }
+              data->ws_common->OnMessageWithHandshake(
+                  ws, msg, code, [ws, data](const RequestMessage& req_msg) {
+                    req_msg.require("protocol");
+                    req_msg.require("topic");
 
-              // Check the handshake hasn't already happend.
-              if (data->init) {
-                ws->end(4000, "Handshake only allowed once per websocket.");
-                return;
-              }
-              data->init = true;
+                    std::string protocol_tmpl = "{topic}";
+                    req_msg.maybe_option_to("protocol", protocol_map(), protocol_tmpl);
+                    std::string glob_path = std::filesystem::path(env::root()) / topic_path(protocol_tmpl, req_msg.topic);
 
-              // Parse the request, including common fields.
-              RequestMessage req_msg;
-              try {
-                req_msg = ParseRequestMessage(msg);
-                req_msg.require("protocol");
-                req_msg.require("topic");
-              } catch (std::exception& e) {
-                ws->end(4000, e.what());
-                return;
-              }
-
-              static std::unordered_map<std::string, std::string> protocol_map = {
-                  {"file", "{topic}"},
-                  {"cfg", env::topic_tmpl_cfg()},
-                  {"log", env::topic_tmpl_log()},
-                  {"prpc", env::topic_tmpl_prpc()},
-                  {"pubsub", env::topic_tmpl_pubsub()},
-                  {"rpc", env::topic_tmpl_rpc()},
-              };
-
-              // Get the required 'protocol' option.
-              std::string glob_path;
-              std::string protocol_tmpl = "**/*";
-              try {
-                req_msg.maybe_option_to("protocol", protocol_map, protocol_tmpl);
-                glob_path = std::filesystem::path(env::root()) / topic_path(protocol_tmpl, req_msg.topic);
-              } catch (std::exception& e) {
-                ws->end(4000, e.what());
-                return;
-              }
-              const std::string tmpl_topic = "{topic}";
-              const size_t tmpl_topic_idx = protocol_tmpl.find(tmpl_topic);
-
-              // Get the optional 'scheduler' option.
-              try {
-                req_msg.maybe_option_to("scheduler", scheduler_map(), data->scheduler);
-              } catch (std::exception& e) {
-                ws->end(4000, e.what());
-                return;
-              }
-
-              // Create the discovery.
-              // Note: we don't want to use the "ws" or "data" directly in the discovery thread.
-              data->discovery = std::make_unique<Discovery>(
-                  glob_path,
-                  [ws, req_msg, protocol_tmpl, tmpl_topic, tmpl_topic_idx,
-                   scheduler = data->scheduler,
-                   curr_cnt = data->scheduler_event_count](const std::string& path) {
-                    if (!global()->running) {
-                      return;
-                    }
-
-                    // Save the event count before sending the message.
-                    // Depending on the scheduler, the discovery might block until the event counter increments.
-                    int64_t pre_send_cnt = *curr_cnt;
-
-                    // Schedule the event loop to perform the send operation.
-                    // We can use "ws" or "data" within the event loop, assuming the ws is still alive.
-                    global()->event_loop->defer(
-                        [ws, req_msg, path, protocol_tmpl, tmpl_topic, tmpl_topic_idx]() {
-                          // Make sure the ws hasn't closed between the discovery callback and this task.
-                          if (!global()->running ||
-                              !global()->active_ws.count(ws)) {
-                            return;
-                          }
-
-                          std::string relpath = std::string(std::filesystem::relative(path, env::root()));
-
-                          std::string topic = relpath.substr(
-                              tmpl_topic_idx,
-                              relpath.size() - (protocol_tmpl.size() - tmpl_topic_idx - tmpl_topic.size()));
-
-                          auto send_status = ws->send(nlohmann::json{
-                                                          {"abspath", path},
-                                                          {"relpath", relpath},
-                                                          {"topic", topic},
-                                                      }
-                                                          .dump(),
-                                                      uWS::TEXT, true);
-
-                          auto* data = ws->getUserData();
-                          if (data->scheduler == scheduler_t::ON_DRAIN && send_status == ws->SUCCESS) {
-                            (*data->scheduler_event_count)++;
-                            global()->cv.notify_all();
-                          }
-                        });
-
-                    // Maybe block discovery callback thread.
-                    if (scheduler != scheduler_t::IMMEDIATE) {
-                      std::unique_lock<std::mutex> lk{global()->mu};
-                      global()->cv.wait(lk, [pre_send_cnt, curr_cnt]() {
-                        // Unblock if:
-                        // * system is shutting down.
-                        // * websocket is closing (indicated by -1).
-                        // * the scheduler is ready for the next message.
-                        return !global()->running || *curr_cnt == -1 || pre_send_cnt < *curr_cnt;
-                      });
-                    }
+                    data->discovery = std::make_unique<Discovery>(
+                        glob_path, AlephZeroCallback(ws, req_msg, protocol_tmpl));
                   });
             },
         .drain =
             [](auto* ws) {
               auto* data = ws->getUserData();
-              if (data->scheduler == scheduler_t::ON_DRAIN && ws->getBufferedAmount() == 0) {
-                (*data->scheduler_event_count)++;
-                global()->cv.notify_all();
+              if (data->ws_common) {
+                data->ws_common->ondrain(ws);
               }
             },
         .ping = nullptr,
@@ -174,9 +111,9 @@ struct WSDiscover {
         .close =
             [](auto* ws, int code, std::string_view msg) {
               auto* data = ws->getUserData();
-              *data->scheduler_event_count = -1;
-              global()->active_ws.erase(ws);
-              global()->cv.notify_all();
+              if (data->ws_common) {
+                data->ws_common->onclose(ws);
+              }
             },
     };
   }
