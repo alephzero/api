@@ -49,4 +49,16 @@ const std::unordered_map<std::string, LogLevel>& level_map() {
   return val;
 }
 
+const std::unordered_map<std::string, std::string>& protocol_map() {
+  static std::unordered_map<std::string, std::string> val = {
+      {"file", "{topic}"},
+      {"cfg", env::topic_tmpl_cfg()},
+      {"log", env::topic_tmpl_log()},
+      {"prpc", env::topic_tmpl_prpc()},
+      {"pubsub", env::topic_tmpl_pubsub()},
+      {"rpc", env::topic_tmpl_rpc()},
+  };
+  return val;
+}
+
 }  // namespace a0::api

@@ -1,12 +1,15 @@
 #pragma once
 
+#include <a0.h>
+
 #include <cstdlib>
 #include <string_view>
 
 namespace a0::api {
 
-static inline std::string_view env(std::string_view key,
-                                   std::string_view default_) {
+A0_STATIC_INLINE
+std::string_view env(std::string_view key,
+                     std::string_view default_) {
   const char* val = std::getenv(key.data());
   return val ? val : default_;
 }
