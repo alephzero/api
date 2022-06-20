@@ -45,7 +45,7 @@ jobs:
     - name: Build API
       run: make bin/api -j DEBUG=1
     - name: Run Test
-      run: python3 -m pytest test/test_api.py
+      run: python3 -m pytest test/
 
   lint:
     name: Lint
