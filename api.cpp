@@ -17,7 +17,6 @@
 // * API version isn't part of the path: /api/v2/...?
 
 int main() {
-  auto API_READY_TOPIC = std::string(a0::api::env("API_READY_TOPIC", "api_ready"));
   auto PORT_STR = a0::api::env("PORT_STR", "24880");
 
   int PORT;
@@ -28,6 +27,7 @@ int main() {
     return -1;
   }
 
+  a0::Deadman deadman(a0::env::topic());
   uWS::App app;
   app.get("/api/ls", a0::api::rest_ls);
   app.post("/api/pub", a0::api::rest_pub);
@@ -40,7 +40,7 @@ int main() {
   app.ws<a0::api::WSDiscover::Data>("/wsapi/discover", a0::api::WSDiscover::behavior());
   app.listen(PORT, [&](auto* socket) {
     a0::api::global()->listen_socket = socket;
-    a0::Publisher(API_READY_TOPIC).pub("ready");
+    deadman.take();
   });
 
   a0::api::global()->event_loop = uWS::Loop::get();

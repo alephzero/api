@@ -7,7 +7,7 @@ def test_empty(api_proc):
 
     assert resp.status_code == 200
     assert resp.headers["Access-Control-Allow-Origin"] == "*"
-    assert resp.json() == ["api_ready.pubsub.a0"]
+    assert resp.json() == []
 
 
 def test_populated(api_proc):
@@ -20,6 +20,5 @@ def test_populated(api_proc):
     assert resp.json() == [
         "aaa/bbb.pubsub.a0",
         "aaa/ccc.pubsub.a0",
-        "api_ready.pubsub.a0",
         "bbb/ddd.rpc.a0",
     ]

@@ -23,7 +23,7 @@ class RunApi:
     def start(self):
         assert not self.api_proc
 
-        api_ready = a0.SubscriberSync("api_ready")
+        os.environ["A0_TOPIC"] = "test"
 
         self.api_proc = subprocess.Popen(
             [
@@ -33,7 +33,7 @@ class RunApi:
             env=os.environ.copy(),
         )
 
-        api_ready.read_blocking(timeout=3)
+        a0.Deadman("test").wait_taken(timeout=3)
 
     def shutdown(self):
         assert self.api_proc
