@@ -18,6 +18,7 @@
 
 int main() {
   auto PORT_STR = a0::api::env("PORT_STR", "24880");
+  setenv("A0_TOPIC", "api", /* replace = */ false);
 
   int PORT;
   try {

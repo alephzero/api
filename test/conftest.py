@@ -23,8 +23,6 @@ class RunApi:
     def start(self):
         assert not self.api_proc
 
-        os.environ["A0_TOPIC"] = "test"
-
         self.api_proc = subprocess.Popen(
             [
                 "valgrind", "--leak-check=full", "--error-exitcode=125",
@@ -33,7 +31,7 @@ class RunApi:
             env=os.environ.copy(),
         )
 
-        a0.Deadman("test").wait_taken(timeout=3)
+        a0.Deadman("api").wait_taken(timeout=3)
 
     def shutdown(self):
         assert self.api_proc
